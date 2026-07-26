@@ -514,3 +514,84 @@ def test_24_int_sender_normalization_and_view_errors(monkeypatch):
     assert_error("ERR_NO_MERCHANT", contract.get_merchant, BOB)
     assert_error("ERR_NO_SALE", contract.get_sale, 1)
     assert_error("ERR_NO_CLAIM", contract.get_claim, 1)
+
+
+def test_25_struck_out_merchant_is_inactive_and_banned(monkeypatch):
+    contract, _, _ = make_bond(monkeypatch, strike_limit=2)
+    register(contract)
+    merchant = contract.merchants[Address(MERCHANT)]
+    merchant.strikes = contract.strike_limit
+    merchant.active = False
+
+    gl.message.sender_address = MERCHANT
+    gl.message.value = 1
+    assert_error("ERR_MERCHANT_INACTIVE", contract.top_up_bond)
+    assert_error(
+        "ERR_MERCHANT_INACTIVE",
+        contract.add_product,
+        "https://shop.test/banned",
+    )
+    assert_error(
+        "ERR_MERCHANT_INACTIVE",
+        contract.announce_sale,
+        1,
+        1_000,
+        1_000,
+        600,
+    )
+
+    gl.message.value = contract.min_bond_wei
+    assert_error("ERR_BANNED", contract.register_merchant, "Banned Merchant")
+
+
+def test_26_voluntary_exit_and_reactivation(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    register(contract)
+    merchant = contract.merchants[Address(MERCHANT)]
+    merchant.strikes = 1
+    joined_at = merchant.joined_at
+
+    gl.message.sender_address = MERCHANT
+    contract.withdraw_bond()
+    assert merchant.active is False
+    assert merchant.bond_wei == 0
+    assert contract.get_withdrawable(MERCHANT)["amount_wei"] == 10_000
+    assert_error(
+        "ERR_MERCHANT_INACTIVE",
+        contract.add_product,
+        "https://shop.test/reactivate",
+    )
+    assert_error(
+        "ERR_MERCHANT_INACTIVE",
+        contract.announce_sale,
+        1,
+        1_000,
+        1_000,
+        600,
+    )
+
+    gl.message.value = 12_000
+    contract.register_merchant("Reactivated Merchant")
+    reactivated = contract.get_merchant(MERCHANT)
+    assert reactivated["name"] == "Reactivated Merchant"
+    assert reactivated["bond_wei"] == 12_000
+    assert reactivated["active"] is True
+    assert reactivated["strikes"] == 1
+    assert reactivated["joined_at"] == joined_at
+
+    contract.add_product("https://shop.test/reactivate")
+    assert ledger.calls[-1]["args"] == (
+        "https://shop.test/reactivate",
+        Address(MERCHANT),
+    )
+    ledger.products[1] = {"merchant": MERCHANT, "active": True}
+    assert contract.announce_sale(1, 1_000, 1_000, 600) == 1
+
+
+def test_27_active_merchant_reregister_regression(monkeypatch):
+    contract, _, _ = make_bond(monkeypatch)
+    register(contract)
+
+    gl.message.sender_address = MERCHANT
+    gl.message.value = 0
+    assert_error("ERR_ALREADY_MERCHANT", contract.register_merchant, "")
