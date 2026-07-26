@@ -64,21 +64,18 @@ export interface ProtocolConfig {
   pool_wei: bigint;
 }
 
-// Helper to convert unknown numeric values to number safely
 function num(val: any): number {
   if (typeof val === "bigint") return Number(val);
   if (typeof val === "number") return val;
   return Number(val || 0);
 }
 
-// Helper to convert unknown big integer values to bigint safely
 function big(val: any): bigint {
   if (typeof val === "bigint") return val;
   if (typeof val === "number" || typeof val === "string") return BigInt(val);
   return 0n;
 }
 
-// PriceLedger contract views
 export const ledgerContract = {
   async getProductCount(): Promise<number> {
     const res = await client.readContract({
@@ -105,13 +102,13 @@ export const ledgerContract = {
   },
 
   async getObservations(productId: number): Promise<Observation[]> {
-    const list: any[] = await client.readContract({
+    const res: any = await client.readContract({
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "get_observations",
       args: [productId],
     });
-    if (!Array.isArray(list)) return [];
-    return list.map((o) => ({
+    const list = Array.isArray(res) ? res : [];
+    return list.map((o: any) => ({
       price_cents: num(o.price_cents),
       currency: String(o.currency || "USD"),
       observed_at: num(o.observed_at),
@@ -122,13 +119,13 @@ export const ledgerContract = {
   },
 
   async getRecentObservations(productId: number, k: number): Promise<Observation[]> {
-    const list: any[] = await client.readContract({
+    const res: any = await client.readContract({
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "get_recent_observations",
       args: [productId, k],
     });
-    if (!Array.isArray(list)) return [];
-    return list.map((o) => ({
+    const list = Array.isArray(res) ? res : [];
+    return list.map((o: any) => ({
       price_cents: num(o.price_cents),
       currency: String(o.currency || "USD"),
       observed_at: num(o.observed_at),
@@ -148,7 +145,6 @@ export const ledgerContract = {
   },
 };
 
-// MerchantBond contract views
 export const bondContract = {
   async getCounts(): Promise<{ sale_count: number; claim_count: number }> {
     const res: any = await client.readContract({
@@ -157,8 +153,8 @@ export const bondContract = {
       args: [],
     });
     return {
-      sale_count: num(res.sale_count),
-      claim_count: num(res.claim_count),
+      sale_count: num(res?.sale_count),
+      claim_count: num(res?.claim_count),
     };
   },
 

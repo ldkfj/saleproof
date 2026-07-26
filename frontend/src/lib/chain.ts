@@ -1,4 +1,4 @@
-import { createClient, studionet } from "genlayer-js";
+import { createClient, chains } from "genlayer-js";
 
 export const LEDGER_ADDRESS = (import.meta.env.VITE_LEDGER_ADDRESS || "").trim();
 export const BOND_ADDRESS = (import.meta.env.VITE_BOND_ADDRESS || "").trim();
@@ -11,5 +11,5 @@ export const isConfigValid = Boolean(
 );
 
 export const client = createClient({
-  chain: studionet,
+  chain: chains.studionet,
 });
