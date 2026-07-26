@@ -1,4 +1,5 @@
 u64 = int
+u256 = int
 
 
 class Address:
@@ -68,16 +69,30 @@ class DynArray(list):
 class Message:
     def __init__(self):
         self.sender_address: Address = "0x0000000000000000000000000000000000000000"
+        self.value: u256 = 0
+
+
+class Write:
+    def __call__(self, fn):
+        return fn
+
+    def payable(self, fn):
+        return fn
 
 
 class Public:
+    def __init__(self):
+        self.write = Write()
+
     @staticmethod
     def view(fn):
         return fn
 
+
+class Evm:
     @staticmethod
-    def write(fn):
-        return fn
+    def contract_interface(cls):
+        return cls
 
 
 class Contract:
@@ -127,16 +142,21 @@ class GL:
         self.message = Message()
         self.public = Public()
         self.Contract = Contract
+        self.evm = Evm()
         self.nondet = Nondet(self)
         self.eq_principle = EqPrinciple(self)
 
         # Settable fakes & recorded call history for tests
+        self._fake_contract = None
         self._fake_page: str = ""
         self._fake_llm_output: str = ""
         self._last_url: str = ""
         self._last_mode: str = ""
         self._last_prompt: str = ""
         self._last_criteria: str = ""
+
+    def get_contract_at(self, addr):
+        return self._fake_contract
 
 
 gl = GL()
@@ -147,6 +167,7 @@ __all__ = [
     "public",
     "allow_storage",
     "u64",
+    "u256",
     "Address",
     "TreeMap",
     "DynArray",
