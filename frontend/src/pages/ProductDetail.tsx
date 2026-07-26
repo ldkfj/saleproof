@@ -1,11 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ledgerContract } from "../lib/contracts";
-import type { Product, Observation } from "../lib/contracts";
+import { bondContract, ledgerContract } from "../lib/contracts";
+import type { Product, Observation, Merchant } from "../lib/contracts";
 import { PriceChart } from "../components/PriceChart";
+import { TxAction } from "../components/TxAction";
 import { ActiveBadge } from "../components/Badge";
 import { CardSkeleton } from "../components/Skeleton";
 import { centsToPrice, shortAddr, timeAgo } from "../lib/format";
+import { BOND_ADDRESS, LEDGER_ADDRESS } from "../lib/chain";
+import { useWallet } from "../lib/wallet";
+import { useProtocolData } from "../lib/store";
+
+const SNAPSHOT_COOLDOWN_S = 60;
 
 export const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,8 +21,13 @@ export const ProductDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
+  const [walletMerchant, setWalletMerchant] = useState<Merchant | null>(null);
+  const [productUrl, setProductUrl] = useState("");
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  const { address } = useWallet();
+  const { refresh } = useProtocolData();
 
-  useEffect(() => {
+  const loadProduct = useCallback(async () => {
     if (!productId || isNaN(productId)) {
       setError("Invalid Product ID.");
       setLoading(false);
@@ -26,20 +37,42 @@ export const ProductDetail: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    Promise.all([
-      ledgerContract.getProduct(productId),
-      ledgerContract.getObservations(productId),
-    ])
-      .then(([p, obs]) => {
-        setProduct(p);
-        setObservations(obs);
-      })
-      .catch((err) => {
-        console.error("Error fetching product detail:", err);
-        setError("Product not found (ERR_NO_PRODUCT).");
-      })
-      .finally(() => setLoading(false));
+    try {
+      const [nextProduct, nextObservations] = await Promise.all([
+        ledgerContract.getProduct(productId),
+        ledgerContract.getObservations(productId),
+      ]);
+      setProduct(nextProduct);
+      setObservations(nextObservations);
+    } catch (nextError) {
+      console.error("Error fetching product detail:", nextError);
+      setError("Product not found (ERR_NO_PRODUCT).");
+    } finally {
+      setLoading(false);
+    }
   }, [productId]);
+
+  useEffect(() => {
+    void loadProduct();
+  }, [loadProduct]);
+
+  useEffect(() => {
+    if (!address) {
+      setWalletMerchant(null);
+      return;
+    }
+    void bondContract.getMerchant(address).then(setWalletMerchant).catch(() => setWalletMerchant(null));
+  }, [address]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const lastObservation = observations.at(-1);
+  const cooldownRemaining = lastObservation
+    ? Math.max(0, lastObservation.observed_at + SNAPSHOT_COOLDOWN_S - now)
+    : 0;
 
   if (loading) {
     return (
@@ -118,11 +151,37 @@ export const ProductDetail: React.FC = () => {
             <span>📈</span> Historical Price Trend (On-Chain Evidence)
           </h2>
           <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-            300s Cooldown Enforced
+            {cooldownRemaining > 0
+              ? `Cooldown: ${cooldownRemaining}s remaining`
+              : `${SNAPSHOT_COOLDOWN_S}s Cooldown Enforced`}
           </span>
         </div>
 
         <PriceChart observations={observations} />
+
+        <div style={{ marginTop: 16, maxWidth: 360 }}>
+          <TxAction
+            label="Trigger snapshot"
+            request={() => ({
+              address: LEDGER_ADDRESS as `0x${string}`,
+              functionName: "snapshot",
+              args: [product.id],
+            })}
+            onSuccess={async () => {
+              await loadProduct();
+              await refresh();
+            }}
+            disabled={!product.active || cooldownRemaining > 0}
+            disabledReason={
+              !product.active
+                ? "This product is inactive."
+                : cooldownRemaining > 0
+                  ? `Snapshot cooldown: ${cooldownRemaining}s remaining.`
+                  : undefined
+            }
+            consensus
+          />
+        </div>
 
         <div
           style={{
@@ -135,7 +194,42 @@ export const ProductDetail: React.FC = () => {
           }}
         >
           ℹ️ <strong>Snapshot Rule:</strong> Anyone can trigger price snapshots for active products after a
-          300-second cooldown. Failed page fetches (ok=false) are recorded as dead-page evidence.
+          {` ${SNAPSHOT_COOLDOWN_S}-second cooldown.`} Failed page fetches (ok=false) are recorded as dead-page
+          evidence.
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">Add Product</h2>
+        </div>
+        <div className="grid-2">
+          <label>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Product URL</span>
+            <input
+              className="search-input"
+              value={productUrl}
+              onChange={(event) => setProductUrl(event.target.value)}
+              placeholder="https://merchant.example/product"
+            />
+          </label>
+          <TxAction
+            label="Add Product"
+            request={() => ({
+              address: BOND_ADDRESS as `0x${string}`,
+              functionName: "add_product",
+              args: [productUrl.trim()],
+            })}
+            onSuccess={refresh}
+            disabled={!walletMerchant?.active || !productUrl.trim()}
+            disabledReason={
+              !address
+                ? "Connect a merchant wallet."
+                : !walletMerchant?.active
+                  ? "Only an active registered merchant can add products."
+                  : "Enter a product URL."
+            }
+          />
         </div>
       </div>
 

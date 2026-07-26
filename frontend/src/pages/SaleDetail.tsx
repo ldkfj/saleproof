@@ -1,11 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { bondContract, ledgerContract } from "../lib/contracts";
 import type { Sale, Observation, Merchant, Claim } from "../lib/contracts";
 import { ActiveBadge, StrikePips, StateBadge, VerdictBadge } from "../components/Badge";
+import { TxAction } from "../components/TxAction";
 import { Sparkline } from "../components/Sparkline";
 import { CardSkeleton } from "../components/Skeleton";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
+import { BOND_ADDRESS } from "../lib/chain";
+import { useWallet } from "../lib/wallet";
+import { useProtocolData } from "../lib/store";
+
+function parseScaledDecimal(input: string, decimals: number, label: string): number {
+  const value = input.trim();
+  if (!/^\d+(?:\.\d+)?$/.test(value)) throw new Error(`Enter a valid ${label}.`);
+  const [whole, fraction = ""] = value.split(".");
+  if (fraction.length > decimals) {
+    throw new Error(`${label} may have at most ${decimals} decimal places.`);
+  }
+  const scaled =
+    BigInt(whole) * 10n ** BigInt(decimals) +
+    BigInt(fraction.padEnd(decimals, "0") || "0");
+  if (scaled > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error(`${label} is too large.`);
+  return Number(scaled);
+}
 
 export const SaleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,8 +35,15 @@ export const SaleDetail: React.FC = () => {
   const [observations, setObservations] = useState<Observation[]>([]);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [walletMerchant, setWalletMerchant] = useState<Merchant | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [referencePrice, setReferencePrice] = useState("65.00");
+  const [discountPercent, setDiscountPercent] = useState("20");
+  const [duration, setDuration] = useState("86400");
+  const { address } = useWallet();
+  const { products, config, refresh } = useProtocolData();
 
-  useEffect(() => {
+  const loadSale = useCallback(async () => {
     if (!saleId || isNaN(saleId)) {
       setError("Invalid Sale ID.");
       setLoading(false);
@@ -28,34 +53,66 @@ export const SaleDetail: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    bondContract
-      .getSale(saleId)
-      .then(async (s) => {
-        setSale(s);
+    try {
+      const nextSale = await bondContract.getSale(saleId);
+      setSale(nextSale);
 
-        const [obs, m, counts] = await Promise.all([
-          ledgerContract.getObservations(s.product_id).catch(() => []),
-          bondContract.getMerchant(s.merchant).catch(() => null),
-          bondContract.getCounts().catch(() => ({ claim_count: 0 })),
-        ]);
+      const [nextObservations, nextMerchant, counts] = await Promise.all([
+        ledgerContract.getObservations(nextSale.product_id).catch(() => []),
+        bondContract.getMerchant(nextSale.merchant).catch(() => null),
+        bondContract.getCounts().catch(() => ({ claim_count: 0 })),
+      ]);
 
-        setObservations(obs);
-        setMerchant(m);
+      setObservations(nextObservations);
+      setMerchant(nextMerchant);
 
-        const claimPromises: Promise<Claim | null>[] = [];
-        for (let i = 1; i <= counts.claim_count; i++) {
-          claimPromises.push(bondContract.getClaim(i).catch(() => null));
-        }
-        const allClaims = await Promise.all(claimPromises);
-        const saleClaims = allClaims.filter((c): c is Claim => c !== null && c.sale_id === s.id);
-        setClaims(saleClaims);
-      })
-      .catch((err) => {
-        console.error("Error fetching sale detail:", err);
-        setError("Sale not found (ERR_NO_SALE).");
-      })
-      .finally(() => setLoading(false));
+      const claimPromises: Promise<Claim | null>[] = [];
+      for (let i = 1; i <= counts.claim_count; i++) {
+        claimPromises.push(bondContract.getClaim(i).catch(() => null));
+      }
+      const allClaims = await Promise.all(claimPromises);
+      setClaims(
+        allClaims.filter(
+          (candidate): candidate is Claim =>
+            candidate !== null && candidate.sale_id === nextSale.id,
+        ),
+      );
+    } catch (nextError) {
+      console.error("Error fetching sale detail:", nextError);
+      setError("Sale not found (ERR_NO_SALE).");
+    } finally {
+      setLoading(false);
+    }
   }, [saleId]);
+
+  useEffect(() => {
+    void loadSale();
+  }, [loadSale]);
+
+  useEffect(() => {
+    if (!address) {
+      setWalletMerchant(null);
+      return;
+    }
+    void bondContract.getMerchant(address).then(setWalletMerchant).catch(() => setWalletMerchant(null));
+  }, [address]);
+
+  const merchantProducts = address
+    ? products.filter(
+        (product) =>
+          product.active && product.merchant.toLowerCase() === address.toLowerCase(),
+      )
+    : [];
+
+  useEffect(() => {
+    if (!selectedProductId && merchantProducts[0]) {
+      setSelectedProductId(String(merchantProducts[0].id));
+    }
+  }, [merchantProducts, selectedProductId]);
+
+  const refreshAfterWrite = async () => {
+    await Promise.all([loadSale(), refresh()]);
+  };
 
   if (loading) {
     return (
@@ -86,6 +143,23 @@ export const SaleDetail: React.FC = () => {
 
   const isRefPriceInflated =
     thirtyDayLowCents !== null && sale.claimed_ref_price_cents > thirtyDayLowCents;
+  const isSaleMerchant =
+    Boolean(address) && sale.merchant.toLowerCase() === address?.toLowerCase();
+  const duplicateClaim =
+    Boolean(address) &&
+    claims.some((claim) => claim.buyer.toLowerCase() === address?.toLowerCase());
+  const saleClosed = Math.floor(Date.now() / 1000) > sale.ends_at;
+  const fileClaimReason = isSaleMerchant
+    ? "Merchants cannot claim against their own sale."
+    : !sale.active
+      ? "This sale is inactive."
+      : saleClosed
+        ? "The sale claim window has closed."
+        : duplicateClaim
+          ? "This wallet already filed a claim for this sale."
+          : !config
+            ? "Protocol configuration is still loading."
+            : undefined;
 
   return (
     <div>
@@ -164,6 +238,136 @@ export const SaleDetail: React.FC = () => {
           <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
             Red dashed line indicates the merchant's claimed reference price. The purple sparkline tracks actual on-chain snapshot evidence.
           </p>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">Sale Actions</h2>
+        </div>
+        <div className="grid-2">
+          <TxAction
+            label="Cancel Sale"
+            request={() => ({
+              address: BOND_ADDRESS as `0x${string}`,
+              functionName: "cancel_sale",
+              args: [sale.id],
+            })}
+            onSuccess={refreshAfterWrite}
+            disabled={!isSaleMerchant || !sale.active || claims.length > 0}
+            disabledReason={
+              !isSaleMerchant
+                ? "Only the merchant who announced this sale may cancel it."
+                : !sale.active
+                  ? "This sale is already inactive."
+                  : claims.length > 0
+                    ? "A sale with claims cannot be canceled."
+                    : undefined
+            }
+            className="btn-search"
+          />
+          <TxAction
+            label={`File Claim${config ? ` · ${weiToGen(config.claim_deposit_wei)}` : ""}`}
+            request={() => ({
+              address: BOND_ADDRESS as `0x${string}`,
+              functionName: "file_claim",
+              args: [sale.id],
+              value: config?.claim_deposit_wei ?? 0n,
+            })}
+            onSuccess={refreshAfterWrite}
+            disabled={Boolean(fileClaimReason)}
+            disabledReason={fileClaimReason}
+          />
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">Announce Sale</h2>
+        </div>
+        <div className="grid-3">
+          <label>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Product</span>
+            <select
+              className="search-input"
+              value={selectedProductId}
+              onChange={(event) => setSelectedProductId(event.target.value)}
+            >
+              <option value="">Select your product</option>
+              {merchantProducts.map((product) => (
+                <option key={product.id} value={product.id}>
+                  Product #{product.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              Reference price ({currency})
+            </span>
+            <input
+              className="search-input"
+              value={referencePrice}
+              inputMode="decimal"
+              onChange={(event) => setReferencePrice(event.target.value)}
+            />
+          </label>
+          <label>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Discount %</span>
+            <input
+              className="search-input"
+              value={discountPercent}
+              inputMode="decimal"
+              onChange={(event) => setDiscountPercent(event.target.value)}
+            />
+          </label>
+          <label>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Duration</span>
+            <select
+              className="search-input"
+              value={duration}
+              onChange={(event) => setDuration(event.target.value)}
+            >
+              <option value="3600">1 hour</option>
+              <option value="86400">24 hours</option>
+              <option value="604800">7 days</option>
+              <option value="2592000">30 days</option>
+            </select>
+          </label>
+          <TxAction
+            label="Announce Sale"
+            request={() => ({
+              address: BOND_ADDRESS as `0x${string}`,
+              functionName: "announce_sale",
+              args: [
+                Number(selectedProductId),
+                parseScaledDecimal(referencePrice, 2, "reference price"),
+                parseScaledDecimal(discountPercent, 2, "discount"),
+                Number(duration),
+              ],
+            })}
+            onSuccess={async () => {
+              await refresh();
+            }}
+            disabled={
+              !walletMerchant?.active ||
+              !selectedProductId ||
+              (() => {
+                try {
+                  const price = parseScaledDecimal(referencePrice, 2, "reference price");
+                  const discount = parseScaledDecimal(discountPercent, 2, "discount");
+                  return price < 1 || price > 1_000_000_000 || discount < 100 || discount > 9500;
+                } catch {
+                  return true;
+                }
+              })()
+            }
+            disabledReason={
+              !walletMerchant?.active
+                ? "Only an active registered merchant can announce sales."
+                : "Select your product and enter a valid price and 1–95% discount."
+            }
+          />
         </div>
       </div>
 
