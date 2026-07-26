@@ -216,3 +216,100 @@ class MerchantBond(gl.Contract):
         gl.get_contract_at(self.ledger).emit(on="finalized").register_product(
             url, sender
         )
+
+    @gl.public.write
+    def announce_sale(
+        self,
+        product_id: u64,
+        claimed_ref_price_cents: u64,
+        claimed_discount_bp: u64,
+        duration_s: u64,
+    ) -> u64:
+        sender = _to_address(gl.message.sender_address)
+        if sender not in self.merchants:
+            raise Exception("ERR_NOT_MERCHANT")
+        if claimed_ref_price_cents < 1 or claimed_ref_price_cents > 1_000_000_000:
+            raise Exception("ERR_PRICE")
+        if claimed_discount_bp < 100 or claimed_discount_bp > 9500:
+            raise Exception("ERR_DISCOUNT")
+        if duration_s < 600 or duration_s > 2_592_000:
+            raise Exception("ERR_DURATION")
+        try:
+            product = (
+                gl.get_contract_at(self.ledger).view().get_product(product_id)
+            )
+        except Exception:
+            raise Exception("ERR_NO_PRODUCT")
+        if _to_address(product["merchant"]) != sender:
+            raise Exception("ERR_NOT_YOUR_PRODUCT")
+        if not product["active"]:
+            raise Exception("ERR_PRODUCT_INACTIVE")
+
+        self.sale_count = u64(self.sale_count + 1)
+        sale_id = self.sale_count
+        now = u64(_now())
+        self.sales[sale_id] = Sale(
+            id=sale_id,
+            merchant=sender,
+            product_id=product_id,
+            claimed_ref_price_cents=claimed_ref_price_cents,
+            claimed_discount_bp=claimed_discount_bp,
+            announced_at=now,
+            ends_at=u64(now + duration_s),
+            active=True,
+        )
+        return sale_id
+
+    @gl.public.write.payable
+    def file_claim(self, sale_id: u64) -> u64:
+        if sale_id not in self.sales:
+            raise Exception("ERR_NO_SALE")
+        sale = self.sales[sale_id]
+        now = u64(_now())
+        if now > sale.ends_at:
+            raise Exception("ERR_SALE_CLOSED")
+
+        buyer = _to_address(gl.message.sender_address)
+        if buyer == _to_address(sale.merchant):
+            raise Exception("ERR_SELF_CLAIM")
+        value = gl.message.value
+        if value != self.claim_deposit_wei:
+            raise Exception("ERR_DEPOSIT")
+        claim_key = f"{sale_id}:{str(buyer)}"
+        if claim_key in self.claims_by_sale_buyer:
+            raise Exception("ERR_DUPLICATE_CLAIM")
+
+        merchant = self.merchants[_to_address(sale.merchant)]
+        worst_case_liability = merchant.bond_wei * 1000 // 10000
+        reserved_wei = u256(0)
+        # Demo-scale O(n) scan is accepted for Phase 3; index it before production scale.
+        for existing_claim_id in range(1, self.claim_count + 1):
+            existing_claim = self.claims[existing_claim_id]
+            existing_sale = self.sales[existing_claim.sale_id]
+            if (
+                existing_claim.state != STATE_SETTLED
+                and _to_address(existing_sale.merchant) == merchant.addr
+            ):
+                reserved_wei = u256(reserved_wei + worst_case_liability)
+        if merchant.bond_wei < reserved_wei + worst_case_liability:
+            raise Exception("ERR_BOND_COVERAGE")
+
+        self.claim_count = u64(self.claim_count + 1)
+        claim_id = self.claim_count
+        self.claims[claim_id] = Claim(
+            id=claim_id,
+            sale_id=sale_id,
+            buyer=buyer,
+            deposit_wei=value,
+            state=STATE_OPEN,
+            verdict=VERDICT_NONE,
+            confidence_bp=u64(0),
+            reasoning="",
+            appellant=_to_address(
+                "0x0000000000000000000000000000000000000000"
+            ),
+            created_at=now,
+            judged_at=u64(0),
+        )
+        self.claims_by_sale_buyer[claim_key] = claim_id
+        return claim_id
