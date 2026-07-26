@@ -135,6 +135,15 @@ def compute_settlement(verdict: str, deposit_wei: int, bond_wei: int) -> dict:
     raise ValueError("ERR_BAD_VERDICT")
 
 
+@gl.evm.contract_interface
+class _Recipient:
+    class View:
+        pass
+
+    class Write:
+        pass
+
+
 class MerchantBond(gl.Contract):
     owner: Address
     ledger: Address
@@ -288,7 +297,8 @@ class MerchantBond(gl.Contract):
             existing_sale = self.sales[existing_claim.sale_id]
             if (
                 existing_claim.state != STATE_SETTLED
-                and _to_address(existing_sale.merchant) == merchant.addr
+                and _to_address(existing_sale.merchant)
+                == _to_address(merchant.addr)
             ):
                 reserved_wei = u256(reserved_wei + worst_case_liability)
         if merchant.bond_wei < reserved_wei + worst_case_liability:
@@ -313,3 +323,169 @@ class MerchantBond(gl.Contract):
         )
         self.claims_by_sale_buyer[claim_key] = claim_id
         return claim_id
+
+    @gl.public.write
+    def finalize_unappealed(self, claim_id: u64) -> None:
+        if claim_id not in self.claims:
+            raise Exception("ERR_NO_CLAIM")
+        claim = self.claims[claim_id]
+        if claim.state != STATE_JUDGED:
+            raise Exception("ERR_BAD_TRANSITION")
+        now = u64(_now())
+        if now <= claim.judged_at + self.appeal_window_s:
+            raise Exception("ERR_APPEAL_WINDOW_OPEN")
+        _transition(claim, "finalize")
+
+    @gl.public.write
+    def settle(self, claim_id: u64) -> None:
+        if claim_id not in self.claims:
+            raise Exception("ERR_BAD_TRANSITION")
+        claim = self.claims[claim_id]
+        if claim.state != STATE_FINAL:
+            raise Exception("ERR_BAD_TRANSITION")
+
+        sale = self.sales[claim.sale_id]
+        merchant_addr = _to_address(sale.merchant)
+        merchant = self.merchants[merchant_addr]
+        result = compute_settlement(
+            claim.verdict, claim.deposit_wei, merchant.bond_wei
+        )
+        new_bond = merchant.bond_wei + result["bond_delta_wei"]
+        if new_bond < 0:
+            raise Exception("ERR_INSOLVENT")
+
+        buyer = _to_address(claim.buyer)
+        self.withdrawable[buyer] = u256(
+            self.withdrawable.get(buyer, u256(0)) + result["buyer_wei"]
+        )
+        self.withdrawable[merchant_addr] = u256(
+            self.withdrawable.get(merchant_addr, u256(0))
+            + result["merchant_wei"]
+        )
+        self.pool_wei = u256(self.pool_wei + result["pool_wei"])
+        merchant.bond_wei = u256(new_bond)
+        if result["strike"]:
+            merchant.strikes = u64(merchant.strikes + 1)
+            if merchant.strikes >= self.strike_limit:
+                merchant.active = False
+        _transition(claim, "settle")
+
+    @gl.public.write
+    def withdraw(self) -> None:
+        sender = _to_address(gl.message.sender_address)
+        amount = self.withdrawable.get(sender, u256(0))
+        if amount == 0:
+            raise Exception("ERR_NOTHING_TO_WITHDRAW")
+        self.withdrawable[sender] = u256(0)
+        _Recipient(sender).emit_transfer(value=u256(amount))
+
+    @gl.public.write
+    def withdraw_bond(self) -> None:
+        sender = _to_address(gl.message.sender_address)
+        if sender not in self.merchants:
+            raise Exception("ERR_NOT_MERCHANT")
+        merchant = self.merchants[sender]
+
+        for claim_id in range(1, self.claim_count + 1):
+            claim = self.claims[claim_id]
+            sale = self.sales[claim.sale_id]
+            if (
+                _to_address(sale.merchant) == sender
+                and claim.state != STATE_SETTLED
+            ):
+                raise Exception("ERR_OPEN_CLAIMS")
+
+        now = u64(_now())
+        for sale_id in range(1, self.sale_count + 1):
+            sale = self.sales[sale_id]
+            if (
+                _to_address(sale.merchant) == sender
+                and sale.active
+                and now <= sale.ends_at
+            ):
+                raise Exception("ERR_ACTIVE_SALES")
+
+        amount = merchant.bond_wei
+        self.withdrawable[sender] = u256(
+            self.withdrawable.get(sender, u256(0)) + amount
+        )
+        merchant.bond_wei = u256(0)
+        merchant.active = False
+
+    @gl.public.view
+    def get_merchant(self, addr: Address) -> dict:
+        addr = _to_address(addr)
+        if addr not in self.merchants:
+            raise Exception("ERR_NO_MERCHANT")
+        merchant = self.merchants[addr]
+        return {
+            "addr": merchant.addr,
+            "name": merchant.name,
+            "bond_wei": merchant.bond_wei,
+            "strikes": merchant.strikes,
+            "active": merchant.active,
+            "joined_at": merchant.joined_at,
+        }
+
+    @gl.public.view
+    def get_sale(self, sale_id: u64) -> dict:
+        if sale_id not in self.sales:
+            raise Exception("ERR_NO_SALE")
+        sale = self.sales[sale_id]
+        return {
+            "id": sale.id,
+            "merchant": sale.merchant,
+            "product_id": sale.product_id,
+            "claimed_ref_price_cents": sale.claimed_ref_price_cents,
+            "claimed_discount_bp": sale.claimed_discount_bp,
+            "announced_at": sale.announced_at,
+            "ends_at": sale.ends_at,
+            "active": sale.active,
+        }
+
+    @gl.public.view
+    def get_claim(self, claim_id: u64) -> dict:
+        if claim_id not in self.claims:
+            raise Exception("ERR_NO_CLAIM")
+        claim = self.claims[claim_id]
+        return {
+            "id": claim.id,
+            "sale_id": claim.sale_id,
+            "buyer": claim.buyer,
+            "deposit_wei": claim.deposit_wei,
+            "state": claim.state,
+            "verdict": claim.verdict,
+            "confidence_bp": claim.confidence_bp,
+            "reasoning": claim.reasoning,
+            "appellant": claim.appellant,
+            "created_at": claim.created_at,
+            "judged_at": claim.judged_at,
+        }
+
+    @gl.public.view
+    def get_config(self) -> dict:
+        return {
+            "owner": self.owner,
+            "ledger": self.ledger,
+            "min_bond_wei": self.min_bond_wei,
+            "claim_deposit_wei": self.claim_deposit_wei,
+            "appeal_bond_wei": self.appeal_bond_wei,
+            "appeal_window_s": self.appeal_window_s,
+            "strike_limit": self.strike_limit,
+            "pool_wei": self.pool_wei,
+        }
+
+    @gl.public.view
+    def get_withdrawable(self, addr: Address) -> dict:
+        addr = _to_address(addr)
+        return {
+            "addr": addr,
+            "amount_wei": self.withdrawable.get(addr, u256(0)),
+        }
+
+    @gl.public.view
+    def get_counts(self) -> dict:
+        return {
+            "sale_count": self.sale_count,
+            "claim_count": self.claim_count,
+        }
