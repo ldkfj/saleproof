@@ -476,3 +476,33 @@ def test_20_registrar_flow_with_int_address_input():
     p_id = ledger.register_product("https://shop.com/int-addr", int(MERCHANT, 16))
     prod = ledger.get_product(p_id)
     assert prod["merchant"] == ledger_mod._to_address(MERCHANT)
+
+
+def test_21_strip_fences_plain_json_and_markdown_variants():
+    payload = (
+        '{"found":true,"price_cents":4999,'
+        '"currency":"USD","note":"Shoes"}'
+    )
+    assert ledger_mod._strip_fences(payload) == payload
+    assert validate_extraction(f"```json\n{payload}\n```") == (
+        True,
+        4999,
+        "USD",
+        "Shoes",
+    )
+    assert validate_extraction(f"```\n{payload}\n```") == (
+        True,
+        4999,
+        "USD",
+        "Shoes",
+    )
+    assert (
+        "Do not wrap the JSON in markdown fences."
+        in ledger_mod.EXTRACTION_PROMPT_TEMPLATE
+    )
+
+
+def test_22_fence_only_payload_still_fails_strict_parser():
+    with pytest.raises(ValueError) as exc_info:
+        validate_extraction("```json\n```")
+    assert str(exc_info.value).startswith("ERR_EXTRACT_INVALID")

@@ -15,6 +15,7 @@ from contracts.merchant_bond import (
     VERDICT_INFLATED,
     VERDICT_INSUFFICIENT,
     compute_settlement,
+    validate_verdict,
 )
 
 
@@ -41,6 +42,7 @@ class EmitRecorder:
 class FakeLedger:
     def __init__(self):
         self.products = {}
+        self.observations = {}
         self.calls = []
 
     def view(self):
@@ -50,6 +52,9 @@ class FakeLedger:
         if product_id not in self.products:
             raise Exception("missing product")
         return self.products[product_id]
+
+    def get_observations(self, product_id):
+        return self.observations.get(product_id, [])
 
     def emit(self, on=None):
         return EmitRecorder(self, on)
@@ -86,6 +91,12 @@ def reset_gl():
     gl.message.sender_address = OWNER
     gl.message.value = 0
     gl._fake_contract = None
+    gl._fake_page = ""
+    gl._fake_llm_output = ""
+    gl._last_url = ""
+    gl._last_mode = ""
+    gl._last_prompt = ""
+    gl._last_criteria = ""
 
 
 def assert_error(code, fn, *args):
@@ -122,6 +133,7 @@ def announce(contract, ledger, *, merchant=MERCHANT, product_id=1):
     ledger.products[product_id] = {
         "merchant": merchant,
         "active": True,
+        "url": "https://shop.test/item",
     }
     gl.message.sender_address = merchant
     return contract.announce_sale(product_id, 20_000, 1_000, 600)
@@ -146,9 +158,29 @@ def bare_claim(state=STATE_OPEN):
         confidence_bp=0,
         reasoning="",
         appellant=Address(ZERO),
+        appeal_bond_wei=0,
+        original_verdict="",
         created_at=NOW,
         judged_at=0,
     )
+
+
+def valid_observations(count=3):
+    return [
+        {
+            "price_cents": 10_000 + index * 100,
+            "currency": "USD",
+            "observed_at": NOW - (count - index) * 60,
+            "ok": True,
+        }
+        for index in range(count)
+    ]
+
+
+def prepare_claim(contract, ledger, buyer=BUYER):
+    register(contract)
+    sale_id = announce(contract, ledger)
+    return file_claim(contract, sale_id, buyer)
 
 
 def test_1_registration_happy_path(monkeypatch):
@@ -595,3 +627,297 @@ def test_27_active_merchant_reregister_regression(monkeypatch):
     gl.message.sender_address = MERCHANT
     gl.message.value = 0
     assert_error("ERR_ALREADY_MERCHANT", contract.register_merchant, "")
+
+
+def test_28_strip_fences_and_fenced_verdict_payloads():
+    payload = (
+        '{"verdict":"GENUINE","confidence_bp":8000,'
+        '"reasoning":"history supports the claim"}'
+    )
+    assert bond_mod._strip_fences(payload) == payload
+    assert validate_verdict(f"```json\n{payload}\n```") == (
+        VERDICT_GENUINE,
+        8000,
+        "history supports the claim",
+    )
+    assert validate_verdict(f"```\n{payload}\n```") == (
+        VERDICT_GENUINE,
+        8000,
+        "history supports the claim",
+    )
+    with pytest.raises(ValueError) as exc_info:
+        validate_verdict("```json\n```")
+    assert str(exc_info.value).startswith("ERR_VERDICT_INVALID")
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"verdict":"UNKNOWN","confidence_bp":8000,"reasoning":"x"}',
+        '{"verdict":"GENUINE","confidence_bp":8000,"reasoning":"x","extra":1}',
+        '{"verdict":"GENUINE","confidence_bp":8000}',
+        '{"verdict":"GENUINE","confidence_bp":true,"reasoning":"x"}',
+        '{"verdict":"GENUINE","confidence_bp":"8000","reasoning":"x"}',
+        '{"verdict":"GENUINE","confidence_bp":-1,"reasoning":"x"}',
+        '{"verdict":"GENUINE","confidence_bp":10001,"reasoning":"x"}',
+        '{"verdict":"GENUINE","confidence_bp":8000,"reasoning":"'
+        + ("x" * 401)
+        + '"}',
+        "x" * 3000,
+        'Result: {"verdict":"GENUINE","confidence_bp":8000,"reasoning":"x"}',
+    ],
+    ids=[
+        "wrong-verdict",
+        "extra-key",
+        "missing-key",
+        "confidence-bool",
+        "confidence-str",
+        "confidence-negative",
+        "confidence-too-high",
+        "reasoning-too-long",
+        "raw-too-large",
+        "prose-wrapped",
+    ],
+)
+def test_29_validate_verdict_adversarial(raw):
+    with pytest.raises(ValueError) as exc_info:
+        validate_verdict(raw)
+    assert str(exc_info.value).startswith("ERR_VERDICT_INVALID")
+
+
+def test_30_judge_claim_guards_short_circuit_and_happy(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    assert_error("ERR_NO_CLAIM", contract.judge_claim, 999)
+    claim_id = prepare_claim(contract, ledger)
+    claim = contract.claims[claim_id]
+    claim.state = STATE_JUDGED
+    assert_error("ERR_BAD_TRANSITION", contract.judge_claim, claim_id)
+
+    claim.state = STATE_OPEN
+    ledger.observations[1] = valid_observations(2)
+    gl._fake_llm_output = (
+        '{"verdict":"DECEPTIVE","confidence_bp":9000,'
+        '"reasoning":"must not run"}'
+    )
+    contract.judge_claim(claim_id)
+    assert claim.state == STATE_JUDGED
+    assert claim.verdict == VERDICT_INSUFFICIENT
+    assert claim.confidence_bp == 10000
+    assert claim.reasoning == (
+        "fewer than 3 valid on-chain price observations"
+    )
+    assert gl._last_prompt == ""
+
+    happy_contract, happy_ledger, _ = make_bond(monkeypatch)
+    happy_claim_id = prepare_claim(happy_contract, happy_ledger)
+    happy_ledger.observations[1] = valid_observations(3)
+    gl._fake_page = "Current product page price is $90"
+    gl._fake_llm_output = (
+        '{"verdict":"INFLATED_REFERENCE","confidence_bp":8200,'
+        '"reasoning":"reference exceeds the observed low"}'
+    )
+    happy_contract.judge_claim(happy_claim_id)
+    happy_claim = happy_contract.claims[happy_claim_id]
+    assert happy_claim.state == STATE_JUDGED
+    assert happy_claim.verdict == VERDICT_INFLATED
+    assert happy_claim.confidence_bp == 8200
+    assert '"p":10000' in gl._last_prompt
+    assert "reference price 20000 cents" in gl._last_prompt
+    assert "discount 1000 basis points" in gl._last_prompt
+    assert "Current product page price is $90" in gl._last_prompt
+
+
+def test_31_appeal_guards_and_happy_merchant_path(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+    claim = contract.claims[claim_id]
+    claim.state = STATE_JUDGED
+    claim.verdict = VERDICT_DECEPTIVE
+    claim.confidence_bp = 8000
+    claim.reasoning = "standing"
+    claim.judged_at = NOW
+
+    gl.message.sender_address = MERCHANT
+    gl.message.value = contract.appeal_bond_wei
+    clock["now"] = NOW + contract.appeal_window_s + 1
+    assert_error("ERR_APPEAL_WINDOW_CLOSED", contract.appeal, claim_id)
+
+    clock["now"] = NOW
+    gl.message.value = contract.appeal_bond_wei - 1
+    assert_error("ERR_APPEAL_BOND", contract.appeal, claim_id)
+
+    gl.message.value = contract.appeal_bond_wei
+    gl.message.sender_address = BUYER
+    assert_error("ERR_NOT_APPELLANT", contract.appeal, claim_id)
+    claim.verdict = VERDICT_GENUINE
+    gl.message.sender_address = MERCHANT
+    assert_error("ERR_NOT_APPELLANT", contract.appeal, claim_id)
+
+    claim.verdict = VERDICT_DECEPTIVE
+    contract.appeal(claim_id)
+    assert claim.state == STATE_APPEALED
+    assert claim.appellant == Address(MERCHANT)
+    assert claim.appeal_bond_wei == contract.appeal_bond_wei
+    assert claim.original_verdict == VERDICT_DECEPTIVE
+
+
+def test_32_judge_appeal_overturn_threshold_and_short_circuit(monkeypatch):
+    def appealed_case(observation_count=3):
+        contract, ledger, _ = make_bond(monkeypatch)
+        claim_id = prepare_claim(contract, ledger)
+        claim = contract.claims[claim_id]
+        claim.state = STATE_APPEALED
+        claim.verdict = VERDICT_DECEPTIVE
+        claim.confidence_bp = 8000
+        claim.reasoning = "standing"
+        claim.appellant = Address(MERCHANT)
+        claim.appeal_bond_wei = contract.appeal_bond_wei
+        claim.original_verdict = VERDICT_DECEPTIVE
+        ledger.observations[1] = valid_observations(observation_count)
+        return contract, claim_id, claim
+
+    contract, claim_id, claim = appealed_case()
+    gl._fake_llm_output = (
+        '{"verdict":"GENUINE","confidence_bp":7500,'
+        '"reasoning":"clear contrary evidence"}'
+    )
+    contract.judge_appeal(claim_id)
+    assert claim.state == STATE_FINAL
+    assert claim.verdict == VERDICT_GENUINE
+    assert claim.confidence_bp == 7500
+
+    low_contract, low_id, low_claim = appealed_case()
+    gl._fake_llm_output = (
+        '{"verdict":"GENUINE","confidence_bp":7499,'
+        '"reasoning":"not confident enough"}'
+    )
+    low_contract.judge_appeal(low_id)
+    assert low_claim.verdict == VERDICT_DECEPTIVE
+    assert low_claim.confidence_bp == 8000
+    assert low_claim.reasoning == "standing | appeal upheld"
+
+    same_contract, same_id, same_claim = appealed_case()
+    gl._fake_llm_output = (
+        '{"verdict":"DECEPTIVE","confidence_bp":9000,'
+        '"reasoning":"same conclusion"}'
+    )
+    same_contract.judge_appeal(same_id)
+    assert same_claim.verdict == VERDICT_DECEPTIVE
+    assert same_claim.confidence_bp == 8000
+    assert same_claim.reasoning == "standing | appeal upheld"
+
+    short_contract, short_id, short_claim = appealed_case(2)
+    gl._last_prompt = ""
+    short_contract.judge_appeal(short_id)
+    assert short_claim.state == STATE_FINAL
+    assert short_claim.verdict == VERDICT_DECEPTIVE
+    assert short_claim.reasoning == "standing"
+    assert gl._last_prompt == ""
+
+
+def test_33_appeal_bond_settlement_and_cancel_lifecycle(monkeypatch):
+    overturned, overturned_ledger, _ = make_bond(monkeypatch)
+    overturned_id = prepare_claim(overturned, overturned_ledger)
+    overturned_claim = overturned.claims[overturned_id]
+    overturned_claim.state = STATE_FINAL
+    overturned_claim.verdict = VERDICT_GENUINE
+    overturned_claim.original_verdict = VERDICT_DECEPTIVE
+    overturned_claim.appellant = Address(MERCHANT)
+    overturned_claim.appeal_bond_wei = overturned.appeal_bond_wei
+    overturned.settle(overturned_id)
+    assert overturned.get_withdrawable(MERCHANT)["amount_wei"] == 250
+    assert overturned.pool_wei == 50
+
+    upheld, upheld_ledger, _ = make_bond(monkeypatch)
+    upheld_id = prepare_claim(upheld, upheld_ledger)
+    upheld_claim = upheld.claims[upheld_id]
+    upheld_claim.state = STATE_FINAL
+    upheld_claim.verdict = VERDICT_INSUFFICIENT
+    upheld_claim.original_verdict = VERDICT_INSUFFICIENT
+    upheld_claim.appellant = Address(BUYER)
+    upheld_claim.appeal_bond_wei = upheld.appeal_bond_wei
+    upheld.settle(upheld_id)
+    assert upheld.get_withdrawable(BUYER)["amount_wei"] == 100
+    assert upheld.pool_wei == 200
+
+    cancellable, cancellable_ledger, _ = make_bond(monkeypatch)
+    assert_error("ERR_NO_SALE", cancellable.cancel_sale, 999)
+    register(cancellable)
+    sale_id = announce(cancellable, cancellable_ledger)
+    gl.message.sender_address = BOB
+    assert_error("ERR_NOT_YOUR_SALE", cancellable.cancel_sale, sale_id)
+    gl.message.sender_address = MERCHANT
+    cancellable.cancel_sale(sale_id)
+    assert cancellable.sales[sale_id].active is False
+    assert_error("ERR_SALE_INACTIVE", cancellable.cancel_sale, sale_id)
+    gl.message.sender_address = BUYER
+    gl.message.value = cancellable.claim_deposit_wei
+    assert_error("ERR_SALE_INACTIVE", cancellable.file_claim, sale_id)
+
+    claimed, claimed_ledger, _ = make_bond(monkeypatch)
+    claimed_id = prepare_claim(claimed, claimed_ledger)
+    gl.message.sender_address = MERCHANT
+    assert_error(
+        "ERR_SALE_HAS_CLAIMS",
+        claimed.cancel_sale,
+        claimed.claims[claimed_id].sale_id,
+    )
+
+    exiting, exiting_ledger, _ = make_bond(monkeypatch)
+    register(exiting)
+    exiting_sale_id = announce(exiting, exiting_ledger)
+    gl.message.sender_address = MERCHANT
+    assert_error("ERR_ACTIVE_SALES", exiting.withdraw_bond)
+    exiting.cancel_sale(exiting_sale_id)
+    exiting.withdraw_bond()
+    assert exiting.get_merchant(MERCHANT)["bond_wei"] == 0
+    assert exiting.get_withdrawable(MERCHANT)["amount_wei"] == 10_000
+
+
+def test_34_full_appealed_journey_bookkeeping(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+    ledger.observations[1] = valid_observations(3)
+    gl._fake_page = "Product is now listed for $90"
+    gl._fake_llm_output = (
+        '{"verdict":"DECEPTIVE","confidence_bp":8000,'
+        '"reasoning":"the advertised reference is false"}'
+    )
+    contract.judge_claim(claim_id)
+    claim = contract.claims[claim_id]
+    assert claim.state == STATE_JUDGED
+
+    gl.message.sender_address = MERCHANT
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+    assert claim.state == STATE_APPEALED
+
+    gl._fake_llm_output = (
+        '{"verdict":"GENUINE","confidence_bp":7500,'
+        '"reasoning":"the complete history supports the sale"}'
+    )
+    contract.judge_appeal(claim_id)
+    assert claim.state == STATE_FINAL
+    assert claim.original_verdict == VERDICT_DECEPTIVE
+    assert claim.verdict == VERDICT_GENUINE
+
+    gl.message.sender_address = BOB
+    contract.settle(claim_id)
+    assert claim.state == STATE_SETTLED
+    assert contract.get_withdrawable(MERCHANT)["amount_wei"] == 250
+    assert contract.get_withdrawable(BUYER)["amount_wei"] == 0
+    assert contract.pool_wei == 50
+    assert contract.get_merchant(MERCHANT)["bond_wei"] == 10_000
+    assert contract.get_merchant(MERCHANT)["strikes"] == 0
+
+    recorder = TransferRecorder(contract)
+    monkeypatch.setattr(bond_mod, "_Recipient", recorder)
+    gl.message.sender_address = MERCHANT
+    contract.withdraw()
+    assert recorder.calls == [
+        {
+            "recipient": Address(MERCHANT),
+            "value": 250,
+            "entry_at_emit": 0,
+        }
+    ]
