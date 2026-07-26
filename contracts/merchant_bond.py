@@ -366,11 +366,28 @@ class MerchantBond(gl.Contract):
         )
         return sale_id
 
+    @gl.public.write
+    def cancel_sale(self, sale_id: u64) -> None:
+        if sale_id not in self.sales:
+            raise Exception("ERR_NO_SALE")
+        sale = self.sales[sale_id]
+        sender = _to_address(gl.message.sender_address)
+        if sender != _to_address(sale.merchant):
+            raise Exception("ERR_NOT_YOUR_SALE")
+        if not sale.active:
+            raise Exception("ERR_SALE_INACTIVE")
+        for claim_id in range(1, self.claim_count + 1):
+            if self.claims[claim_id].sale_id == sale_id:
+                raise Exception("ERR_SALE_HAS_CLAIMS")
+        sale.active = False
+
     @gl.public.write.payable
     def file_claim(self, sale_id: u64) -> u64:
         if sale_id not in self.sales:
             raise Exception("ERR_NO_SALE")
         sale = self.sales[sale_id]
+        if not sale.active:
+            raise Exception("ERR_SALE_INACTIVE")
         now = u64(_now())
         if now > sale.ends_at:
             raise Exception("ERR_SALE_CLOSED")
@@ -648,6 +665,22 @@ class MerchantBond(gl.Contract):
             merchant.strikes = u64(merchant.strikes + 1)
             if merchant.strikes >= self.strike_limit:
                 merchant.active = False
+
+        appellant = _to_address(claim.appellant)
+        zero_address = _to_address(
+            "0x0000000000000000000000000000000000000000"
+        )
+        if appellant != zero_address:
+            overturned = claim.verdict != claim.original_verdict
+            if overturned:
+                self.withdrawable[appellant] = u256(
+                    self.withdrawable.get(appellant, u256(0))
+                    + claim.appeal_bond_wei
+                )
+            else:
+                self.pool_wei = u256(
+                    self.pool_wei + claim.appeal_bond_wei
+                )
         _transition(claim, "settle")
 
     @gl.public.write
