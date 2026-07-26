@@ -100,6 +100,11 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - Polish carried to Phase 6: claim stepper marks APPEALED as completed even for the unappealed path (should skip/grey it when appellant is zero); verdict labels are prettified ("INFLATED REF") — keep full enum in a tooltip/aria-label for precision.
 - Dual sign-off satisfied (Codex signed the correction + assessment; Claude signed final verification). **Phase 5 CLOSED.**
 
+## 2026-07-27 — GOVERNANCE OVERRIDE (user, this project only)
+
+- The user explicitly overrode the push/deploy rule for this task: **Codex has full authority to push GitHub and deploy Vercel for the saleproof project**, without per-action user confirmation via Claude. Basis: the standing override clause in E:\Genlayer\AGENTS.md ("unless the user explicitly overrides this rule for a specific task").
+- Unchanged: content dual sign-off before any push; Codex must verify and report the active GitHub account (`ptc123456` or `dietthe030-ux`), repository owner/remote, and linked Vercel project before each push/deploy — and stop to ask the user if the account choice is ambiguous. Root governance at E:\Genlayer is NOT modified; other projects unaffected.
+
 ## 2026-07-27 — Phase 6 (Codex) — CLOSED with dual sign-off; Phase 5 evidence errata
 
 - **Screenshot audit (user-requested, by Codex): DISCREPANCIES FOUND in Claude's Phase 5 evidence** — 02-product showed a hardcoded "300s cooldown" (deployed config is 60 s; a Phase 5 UI hardcode that both Anti and Claude's review missed) and 04-claim's stepper marked APPEALED complete on an unappealed claim (already logged). Both fixed in Phase 6. Chain-truth values in all 5 screenshots otherwise verified correct by fresh reads. Errata acknowledged by Claude.
