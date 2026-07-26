@@ -1,5 +1,6 @@
 # { "Depends": "py-genlayer:test" }
 from genlayer import *
+from dataclasses import dataclass
 import json
 import time
 

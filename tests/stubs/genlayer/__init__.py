@@ -1,5 +1,3 @@
-from dataclasses import dataclass as std_dataclass
-
 u64 = int
 Address = str
 
@@ -8,9 +6,6 @@ def allow_storage(cls=None):
     if cls is None:
         return lambda c: c
     return cls
-
-
-dataclass = std_dataclass
 
 
 class TreeMap(dict):
@@ -104,7 +99,6 @@ __all__ = [
     "gl",
     "public",
     "allow_storage",
-    "dataclass",
     "u64",
     "Address",
     "TreeMap",
