@@ -171,3 +171,48 @@ class MerchantBond(gl.Contract):
         self.appeal_bond_wei = appeal_bond_wei
         self.appeal_window_s = appeal_window_s
         self.strike_limit = strike_limit
+
+    @gl.public.write.payable
+    def register_merchant(self, name: str) -> None:
+        sender = _to_address(gl.message.sender_address)
+        if sender in self.merchants:
+            raise Exception("ERR_ALREADY_MERCHANT")
+        if not name or not name.strip() or len(name) > 100:
+            raise Exception("ERR_NAME")
+        value = gl.message.value
+        if value < self.min_bond_wei:
+            raise Exception("ERR_MIN_BOND")
+        self.merchants[sender] = Merchant(
+            addr=sender,
+            name=name,
+            bond_wei=value,
+            strikes=u64(0),
+            active=True,
+            joined_at=u64(_now()),
+        )
+
+    @gl.public.write.payable
+    def top_up_bond(self) -> None:
+        sender = _to_address(gl.message.sender_address)
+        if sender not in self.merchants:
+            raise Exception("ERR_NOT_MERCHANT")
+        value = gl.message.value
+        if value == 0:
+            raise Exception("ERR_ZERO_VALUE")
+        merchant = self.merchants[sender]
+        merchant.bond_wei = u256(merchant.bond_wei + value)
+
+    @gl.public.write
+    def add_product(self, url: str) -> None:
+        sender = _to_address(gl.message.sender_address)
+        if sender not in self.merchants:
+            raise Exception("ERR_NOT_MERCHANT")
+        if not url or not url.strip():
+            raise Exception("ERR_URL_EMPTY")
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise Exception("ERR_URL_SCHEME")
+        if len(url) > 500:
+            raise Exception("ERR_URL_TOO_LONG")
+        gl.get_contract_at(self.ledger).emit(on="finalized").register_product(
+            url, sender
+        )
