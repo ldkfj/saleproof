@@ -50,7 +50,14 @@ def allow_storage(cls=None):
 
 class TreeMap(dict):
     """Dict-backed TreeMap stub for GenLayer testing."""
-    pass
+
+    def get_or_insert_default(self, key):
+        # Stub simplification: the only TreeMap value type allocated lazily in
+        # this project is DynArray. Real GenVM default-constructs the declared
+        # value type in storage.
+        if key not in self:
+            self[key] = DynArray()
+        return self[key]
 
 
 class DynArray(list):

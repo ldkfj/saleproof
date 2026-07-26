@@ -167,7 +167,8 @@ class PriceLedger(gl.Contract):
             registered_at=now,
             active=True,
         )
-        self.observations[product_id] = DynArray()
+        # Observation storage is allocated lazily via get_or_insert_default —
+        # storage collections cannot be constructed by user code in GenVM.
         return product_id
 
     @gl.public.write
@@ -273,4 +274,4 @@ class PriceLedger(gl.Contract):
             ok=bool(res["found"]),
             note=str(res["note"]),
         )
-        self.observations[product_id].append(obs)
+        self.observations.get_or_insert_default(product_id).append(obs)

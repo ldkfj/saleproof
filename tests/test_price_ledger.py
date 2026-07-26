@@ -172,7 +172,7 @@ def test_8_get_recent_observations():
             ok=True,
             note=f"obs {i}",
         )
-        ledger.observations[p_id].append(obs)
+        ledger.observations.get_or_insert_default(p_id).append(obs)
 
     # get_recent_observations returns last k in order
     recent3 = ledger.get_recent_observations(p_id, 3)
@@ -230,7 +230,7 @@ def test_11_get_recent_observations_k_zero():
         ok=True,
         note="Hat",
     )
-    ledger.observations[p_id].append(obs)
+    ledger.observations.get_or_insert_default(p_id).append(obs)
 
     recent0 = ledger.get_recent_observations(p_id, 0)
     assert recent0 == []
