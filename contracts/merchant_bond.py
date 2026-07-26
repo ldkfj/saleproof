@@ -96,6 +96,45 @@ def _transition(claim: Claim, action: str) -> None:
     claim.state = next_state
 
 
+def compute_settlement(verdict: str, deposit_wei: int, bond_wei: int) -> dict:
+    if verdict == VERDICT_GENUINE:
+        merchant_wei = deposit_wei // 2
+        return {
+            "buyer_wei": 0,
+            "merchant_wei": merchant_wei,
+            "pool_wei": deposit_wei - merchant_wei,
+            "bond_delta_wei": 0,
+            "strike": False,
+        }
+    if verdict == VERDICT_INFLATED:
+        compensation = bond_wei * 500 // 10000
+        return {
+            "buyer_wei": deposit_wei + compensation,
+            "merchant_wei": 0,
+            "pool_wei": 0,
+            "bond_delta_wei": -compensation,
+            "strike": True,
+        }
+    if verdict == VERDICT_DECEPTIVE:
+        compensation = bond_wei * 1000 // 10000
+        return {
+            "buyer_wei": deposit_wei + compensation,
+            "merchant_wei": 0,
+            "pool_wei": 0,
+            "bond_delta_wei": -compensation,
+            "strike": True,
+        }
+    if verdict == VERDICT_INSUFFICIENT:
+        return {
+            "buyer_wei": deposit_wei,
+            "merchant_wei": 0,
+            "pool_wei": 0,
+            "bond_delta_wei": 0,
+            "strike": False,
+        }
+    raise ValueError("ERR_BAD_VERDICT")
+
+
 class MerchantBond(gl.Contract):
     owner: Address
     ledger: Address
