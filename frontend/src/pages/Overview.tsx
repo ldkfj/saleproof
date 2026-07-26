@@ -1,12 +1,54 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useProtocolData } from "../lib/store";
+import { bondContract } from "../lib/contracts";
+import type { Merchant } from "../lib/contracts";
 import { TableSkeleton } from "../components/Skeleton";
+import { TxAction } from "../components/TxAction";
 import { ActiveBadge, StateBadge, VerdictBadge } from "../components/Badge";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
+import { BOND_ADDRESS } from "../lib/chain";
+import { genToWei } from "../lib/tx";
+import { useWallet } from "../lib/wallet";
 
 export const Overview: React.FC = () => {
-  const { loading, error, products, observationsMap, sales, claims, refresh } = useProtocolData();
+  const { loading, error, products, observationsMap, sales, claims, config, refresh } =
+    useProtocolData();
+  const { address } = useWallet();
+  const [walletMerchant, setWalletMerchant] = useState<Merchant | null>(null);
+  const [withdrawable, setWithdrawable] = useState(0n);
+  const [merchantName, setMerchantName] = useState("");
+  const [bondInput, setBondInput] = useState("");
+  const [topUpInput, setTopUpInput] = useState("0.1");
+
+  const loadWalletState = useCallback(async () => {
+    if (!address) {
+      setWalletMerchant(null);
+      setWithdrawable(0n);
+      return;
+    }
+    const [merchant, pendingWithdrawal] = await Promise.all([
+      bondContract.getMerchant(address).catch(() => null),
+      bondContract.getWithdrawable(address).catch(() => ({ amount_wei: 0n })),
+    ]);
+    setWalletMerchant(merchant);
+    setWithdrawable(pendingWithdrawal.amount_wei);
+  }, [address]);
+
+  useEffect(() => {
+    void loadWalletState();
+  }, [loadWalletState, sales, claims]);
+
+  useEffect(() => {
+    if (config && !bondInput) {
+      setBondInput(weiToGen(config.min_bond_wei).replace(" GEN", ""));
+    }
+  }, [bondInput, config]);
+
+  const refreshAfterWrite = async () => {
+    await refresh();
+    await loadWalletState();
+  };
 
   if (error) {
     return (
@@ -37,6 +79,28 @@ export const Overview: React.FC = () => {
     return centsToPrice(last.price_cents, last.currency);
   };
 
+  const merchantSales = address
+    ? sales.filter((sale) => sale.merchant.toLowerCase() === address.toLowerCase())
+    : [];
+  const openClaim = claims.some((claim) => {
+    const sale = sales.find((candidate) => candidate.id === claim.sale_id);
+    return (
+      claim.state !== "SETTLED" &&
+      Boolean(address) &&
+      sale?.merchant.toLowerCase() === address?.toLowerCase()
+    );
+  });
+  const activeSale = merchantSales.some(
+    (sale) => sale.active && Math.floor(Date.now() / 1000) <= sale.ends_at,
+  );
+  const withdrawBondReason = openClaim
+    ? "Open claims must be settled before withdrawing the bond."
+    : activeSale
+      ? "Active sales must end or be canceled before withdrawing the bond."
+      : undefined;
+  const registerBanned =
+    Boolean(walletMerchant && config && walletMerchant.strikes >= config.strike_limit);
+
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -45,6 +109,144 @@ export const Overview: React.FC = () => {
           Real-time on-chain verification log, registered product evidence, and buyer dispute claims on Studionet.
         </p>
       </div>
+
+      {address && (
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title">Connected Wallet Actions</h2>
+            <span className="mono" style={{ fontSize: 12 }}>
+              {shortAddr(address)}
+            </span>
+          </div>
+
+          {!walletMerchant || !walletMerchant.active ? (
+            <div className="grid-3">
+              <label>
+                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Merchant name</span>
+                <input
+                  className="search-input"
+                  value={merchantName}
+                  maxLength={100}
+                  onChange={(event) => setMerchantName(event.target.value)}
+                  placeholder="Demo Shop"
+                />
+              </label>
+              <label>
+                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  Bond in GEN (minimum {config ? weiToGen(config.min_bond_wei) : "loading…"})
+                </span>
+                <input
+                  className="search-input"
+                  value={bondInput}
+                  inputMode="decimal"
+                  onChange={(event) => setBondInput(event.target.value)}
+                />
+              </label>
+              <TxAction
+                label={walletMerchant ? "Reactivate Merchant" : "Register Merchant"}
+                request={() => ({
+                  address: BOND_ADDRESS as `0x${string}`,
+                  functionName: "register_merchant",
+                  args: [merchantName.trim()],
+                  value: genToWei(bondInput),
+                })}
+                onSuccess={refreshAfterWrite}
+                disabled={
+                  registerBanned ||
+                  !merchantName.trim() ||
+                  !config ||
+                  (() => {
+                    try {
+                      return genToWei(bondInput) < config.min_bond_wei;
+                    } catch {
+                      return true;
+                    }
+                  })()
+                }
+                disabledReason={
+                  registerBanned
+                    ? "This merchant reached the strike limit and is permanently banned."
+                    : "Enter a name and at least the configured minimum bond."
+                }
+              />
+            </div>
+          ) : (
+            <div className="grid-3">
+              <div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  Active merchant
+                </div>
+                <strong>{walletMerchant.name}</strong>
+                <div className="mono">{weiToGen(walletMerchant.bond_wei)}</div>
+              </div>
+              <label>
+                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  Top up bond (GEN)
+                </span>
+                <input
+                  className="search-input"
+                  value={topUpInput}
+                  inputMode="decimal"
+                  onChange={(event) => setTopUpInput(event.target.value)}
+                />
+              </label>
+              <TxAction
+                label="Top Up Bond"
+                request={() => ({
+                  address: BOND_ADDRESS as `0x${string}`,
+                  functionName: "top_up_bond",
+                  value: genToWei(topUpInput),
+                })}
+                onSuccess={refreshAfterWrite}
+                disabled={(() => {
+                  try {
+                    return genToWei(topUpInput) === 0n;
+                  } catch {
+                    return true;
+                  }
+                })()}
+                disabledReason="Enter a positive GEN amount."
+              />
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 12,
+              marginTop: 16,
+              paddingTop: 16,
+              borderTop: "1px solid var(--border-color)",
+            }}
+          >
+            <TxAction
+              label={`Withdraw ${weiToGen(withdrawable)}`}
+              request={() => ({
+                address: BOND_ADDRESS as `0x${string}`,
+                functionName: "withdraw",
+              })}
+              onSuccess={refreshAfterWrite}
+              disabled={withdrawable === 0n}
+              disabledReason="No withdrawable balance is available."
+              className="btn-search"
+            />
+            {walletMerchant?.active && (
+              <TxAction
+                label="Withdraw Merchant Bond"
+                request={() => ({
+                  address: BOND_ADDRESS as `0x${string}`,
+                  functionName: "withdraw_bond",
+                })}
+                onSuccess={refreshAfterWrite}
+                disabled={Boolean(withdrawBondReason)}
+                disabledReason={withdrawBondReason}
+                className="btn-search"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Section 1: Registered Products */}
       <div className="card">
