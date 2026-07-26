@@ -1,3 +1,0 @@
-# Claude Project Gate
-
-Read `E:\Genlayer\AGENTS.md` and `E:\Genlayer\governance\AI-HIERARCHY.md`. Claude is the highest AI authority for this project: it owns architecture, plans, task assignment, review, and release execution. Every step closes only with dual sign-off — Claude prepares a copy-ready review-request prompt for GPT/Codex (via the user) and the step is complete only when both agree. GPT/Codex codes contract/backend logic; Antigravity codes frontend/UI. Claude performs GitHub push and Vercel deploy only after asking the user for explicit confirmation, and verifies the correct GitHub account and linked Vercel project first.

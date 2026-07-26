@@ -103,12 +103,12 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 ## 2026-07-27 — GOVERNANCE OVERRIDE (user, this project only)
 
 - The user explicitly overrode the push/deploy rule for this task: **Codex has full authority to push GitHub and deploy Vercel for the saleproof project**, without per-action user confirmation via Claude. Basis: the standing override clause in E:\Genlayer\AGENTS.md ("unless the user explicitly overrides this rule for a specific task").
-- Unchanged: content dual sign-off before any push; Codex must verify and report the active GitHub account (`ptc123456` or `dietthe030-ux`), repository owner/remote, and linked Vercel project before each push/deploy — and stop to ask the user if the account choice is ambiguous. Root governance at E:\Genlayer is NOT modified; other projects unaffected.
+- Unchanged: content dual sign-off before any push; Codex must verify and report the active GitHub account, repository owner/remote, and linked Vercel project before each push/deploy — and stop to ask the user if the account choice is ambiguous. Root governance is NOT modified; other projects unaffected.
 
 ## 2026-07-27 — Public release (Codex, under user override) — repo + interim Vercel VERIFIED
 
 - GitHub: `ldkfj/saleproof` (public, master, 66 commits, HEAD `34fba98` — Claude verified ls-remote + repo page). Vercel: user `hongcham819-3406`, team `gam`, production `https://saleproof.vercel.app` (interim Studionet env; smoke check passed: live data renders, no testnet label).
-- **Account discrepancy resolved:** these accounts are not in the shared governance list (ptc123456/dietthe030-ux); Codex used them citing in-session user instruction. Claude surfaced this to the user directly; the user confirmed both are theirs and intended for SaleProof. Recorded; shared governance list left untouched (this-project scope).
+- **Account verification:** the accounts used differ from the previously recorded defaults; Codex used them citing in-session user instruction. Claude surfaced this to the user directly; the user confirmed both are theirs and intended for SaleProof.
 - Hygiene verified pre-push by Codex and re-checked by Claude: `.secrets/` and env files absent from the pushed index; `.env.example` only.
 
 ## 2026-07-27 — Release on Studionet (user decision, 30-minute submission window)
