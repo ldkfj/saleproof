@@ -39,3 +39,20 @@ class PriceLedger(gl.Contract):
         self.snapshot_cooldown_s = snapshot_cooldown_s
         self.max_observations = max_observations
         self.product_count = 0
+
+    @gl.public.write
+    def add_registrar(self, addr: Address):
+        if gl.message.sender_address != self.owner:
+            raise Exception("ERR_NOT_OWNER")
+        if self.registrars.get(addr, False):
+            raise Exception("ERR_ALREADY_REGISTRAR")
+        self.registrars[addr] = True
+
+    @gl.public.write
+    def remove_registrar(self, addr: Address):
+        if gl.message.sender_address != self.owner:
+            raise Exception("ERR_NOT_OWNER")
+        if not self.registrars.get(addr, False):
+            raise Exception("ERR_NOT_REGISTRAR")
+        self.registrars[addr] = False
+
