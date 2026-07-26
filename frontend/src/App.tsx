@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ProtocolProvider, useProtocolData } from "./lib/store";
+import { WalletProvider } from "./lib/wallet";
 import { ConfigError } from "./components/ConfigError";
 import { Header } from "./components/Header";
 import { Overview } from "./pages/Overview";
@@ -35,11 +36,13 @@ const MainLayout: React.FC = () => {
 
 export function App() {
   return (
-    <ProtocolProvider>
-      <BrowserRouter>
-        <MainLayout />
-      </BrowserRouter>
-    </ProtocolProvider>
+    <WalletProvider>
+      <ProtocolProvider>
+        <BrowserRouter>
+          <MainLayout />
+        </BrowserRouter>
+      </ProtocolProvider>
+    </WalletProvider>
   );
 }
 

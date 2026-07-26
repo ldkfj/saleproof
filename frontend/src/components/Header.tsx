@@ -1,9 +1,23 @@
 import React, { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useProtocolData } from "../lib/store";
+import { useWallet } from "../lib/wallet";
+import { shortAddr, weiToGen } from "../lib/format";
 
 export const Header: React.FC = () => {
   const { secondsAgo, refresh, loading } = useProtocolData();
+  const {
+    address,
+    balance,
+    providerKind,
+    connecting,
+    funding,
+    error: walletError,
+    connectInjected,
+    connectBurner,
+    disconnect,
+    fundBurner,
+  } = useWallet();
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
 
@@ -37,6 +51,51 @@ export const Header: React.FC = () => {
       </nav>
 
       <div className="header-actions">
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {address ? (
+            <>
+              <div
+                className="status-indicator"
+                title={providerKind === "burner" ? "Dev wallet — Studionet only" : "Injected EIP-1193 wallet"}
+              >
+                <span>{providerKind === "burner" ? "Dev wallet — Studionet only" : "Wallet"}</span>
+                <strong className="mono">{shortAddr(address)}</strong>
+                <span className="mono">{balance === null ? "…" : weiToGen(balance)}</span>
+              </div>
+              {providerKind === "burner" && (
+                <button className="btn-search" onClick={() => void fundBurner()} disabled={funding}>
+                  {funding ? "Funding…" : "Fund 1 GEN"}
+                </button>
+              )}
+              <button className="btn-search" onClick={disconnect}>
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="btn-search"
+                onClick={() => void connectInjected()}
+                disabled={connecting}
+              >
+                Connect MetaMask
+              </button>
+              <button
+                className="btn-search"
+                onClick={() => void connectBurner()}
+                disabled={connecting}
+              >
+                Dev wallet — Studionet only
+              </button>
+            </>
+          )}
+          {walletError && (
+            <span style={{ color: "#f87171", fontSize: 11 }} title={walletError}>
+              Wallet error
+            </span>
+          )}
+        </div>
+
         <form onSubmit={handleSearch} className="search-box" aria-label="Search form">
           <input
             type="text"
