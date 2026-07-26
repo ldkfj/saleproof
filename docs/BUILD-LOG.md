@@ -46,3 +46,8 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - Claude verified empirically via GenVM probe: `TypeError("this class can't be instantiated by user")` for both `DynArray()` and `DynArray[str]()`; TreeMap exposes `get_or_insert_default` / `compute_if_absent` / `setdefault`.
 - Fix: lazy allocation via `TreeMap.get_or_insert_default` in `snapshot`; no eager allocation in `register_product`; stub TreeMap mirrors the method. 20/20 tests, schema probe OK. Commit `cd7832e`.
 - Awaiting Codex re-audit (round 2) before deploy.
+
+## 2026-07-26 — Dual sign-off round 2 (Codex re-audit) — APPROVE
+
+- Codex re-audited HEAD `068e3d3` (full hash `068e3d30d0e157d0c12f46ffc28207d19a70c8a4`): fix verified, no regressions, no new findings, 20/20 tests, schema probe OK, clean working tree.
+- Dual sign-off complete (Claude + Codex agree). PriceLedger cleared for Studio deployment.
