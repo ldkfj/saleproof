@@ -59,6 +59,24 @@ def _now() -> int:
     return int(time.time())
 
 
+def _to_address(v) -> Address:
+    """Normalize an address that Studio/clients may pass as Address, hex str, bytes, or int."""
+    try:
+        if isinstance(v, Address):
+            return v
+        if isinstance(v, bool):
+            pass  # bool is an int subclass; fall through to the error
+        elif isinstance(v, int):
+            return Address(v.to_bytes(20, "big"))
+        elif isinstance(v, (bytes, bytearray)):
+            return Address(bytes(v))
+        elif isinstance(v, str):
+            return Address(v)
+    except Exception:
+        pass
+    raise Exception("ERR_BAD_ADDRESS")
+
+
 
 @allow_storage
 @dataclass
@@ -98,14 +116,15 @@ class PriceLedger(gl.Contract):
     def __init__(
         self, snapshot_cooldown_s: u64 = 300, max_observations: u64 = 500
     ):
-        self.owner = gl.message.sender_address
+        self.owner = _to_address(gl.message.sender_address)
         self.snapshot_cooldown_s = snapshot_cooldown_s
         self.max_observations = max_observations
         self.product_count = 0
 
     @gl.public.write
     def add_registrar(self, addr: Address):
-        if gl.message.sender_address != self.owner:
+        addr = _to_address(addr)
+        if _to_address(gl.message.sender_address) != self.owner:
             raise Exception("ERR_NOT_OWNER")
         if self.registrars.get(addr, False):
             raise Exception("ERR_ALREADY_REGISTRAR")
@@ -113,7 +132,8 @@ class PriceLedger(gl.Contract):
 
     @gl.public.write
     def remove_registrar(self, addr: Address):
-        if gl.message.sender_address != self.owner:
+        addr = _to_address(addr)
+        if _to_address(gl.message.sender_address) != self.owner:
             raise Exception("ERR_NOT_OWNER")
         if not self.registrars.get(addr, False):
             raise Exception("ERR_NOT_REGISTRAR")
@@ -121,7 +141,8 @@ class PriceLedger(gl.Contract):
 
     @gl.public.write
     def register_product(self, url: str, merchant: Address) -> u64:
-        if not self.registrars.get(gl.message.sender_address, False):
+        merchant = _to_address(merchant)
+        if not self.registrars.get(_to_address(gl.message.sender_address), False):
             raise Exception("ERR_NOT_REGISTRAR")
         if not url or not url.strip():
             raise Exception("ERR_URL_EMPTY")
@@ -151,7 +172,7 @@ class PriceLedger(gl.Contract):
 
     @gl.public.write
     def deactivate_product(self, product_id: u64):
-        if not self.registrars.get(gl.message.sender_address, False):
+        if not self.registrars.get(_to_address(gl.message.sender_address), False):
             raise Exception("ERR_NOT_REGISTRAR")
         if product_id not in self.products or product_id == 0 or product_id > self.product_count:
             raise Exception("ERR_NO_PRODUCT")
@@ -206,7 +227,7 @@ class PriceLedger(gl.Contract):
 
     @gl.public.view
     def is_registrar(self, addr: Address) -> bool:
-        return bool(self.registrars.get(addr, False))
+        return bool(self.registrars.get(_to_address(addr), False))
 
     @gl.public.write
     def snapshot(self, product_id: u64) -> None:
@@ -243,7 +264,7 @@ class PriceLedger(gl.Contract):
         criteria = "Extractions agree if found flags match, currency matches exactly, and price_cents differ by at most 2%."
         res = gl.eq_principle.prompt_comparative(fetch_and_extract, criteria)
 
-        sender = gl.message.sender_address
+        sender = _to_address(gl.message.sender_address)
         obs = Observation(
             price_cents=u64(res["price_cents"]),
             currency=str(res["currency"]),

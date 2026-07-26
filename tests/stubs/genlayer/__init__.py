@@ -1,5 +1,45 @@
 u64 = int
-Address = str
+
+
+class Address:
+    """Mirrors the real Address: constructed from hex str or 20 bytes; equality/hash on normalized hex."""
+
+    def __init__(self, val):
+        if isinstance(val, Address):
+            self._hex = val._hex
+            return
+        if isinstance(val, (bytes, bytearray)):
+            b = bytes(val)
+            if len(b) != 20:
+                raise ValueError("Address bytes must be length 20")
+            self._hex = "0x" + b.hex()
+            return
+        if isinstance(val, str):
+            s = val.lower()
+            if s.startswith("0x"):
+                s = s[2:]
+            if len(s) != 40:
+                raise ValueError("Address hex must be 40 chars")
+            int(s, 16)
+            self._hex = "0x" + s
+            return
+        raise TypeError("Address accepts str or 20 bytes")
+
+    def __str__(self):
+        return self._hex
+
+    def __repr__(self):
+        return f"Address({self._hex})"
+
+    def __eq__(self, other):
+        try:
+            o = other if isinstance(other, Address) else Address(other)
+        except Exception:
+            return NotImplemented
+        return self._hex == o._hex
+
+    def __hash__(self):
+        return hash(self._hex)
 
 
 def allow_storage(cls=None):

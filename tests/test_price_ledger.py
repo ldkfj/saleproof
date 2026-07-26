@@ -436,3 +436,43 @@ def test_18_snapshot_failed_extraction_cooldown(monkeypatch):
     assert len(ledger.get_observations(p_id)) == 1
     assert ledger.get_observations(p_id)[0]["price_cents"] == 8000
 
+
+
+def test_19_to_address_normalizer():
+    from genlayer import Address
+    to_addr = ledger_mod._to_address
+
+    # Address instance passes through
+    a = Address(ALICE)
+    assert to_addr(a) == a
+
+    # Hex string normalizes
+    assert to_addr(ALICE) == Address(ALICE)
+
+    # Int (Studio calldata representation) converts via 20-byte big-endian
+    as_int = int(ALICE, 16)
+    assert to_addr(as_int) == Address(ALICE)
+
+    # 20 raw bytes convert
+    as_bytes = bytes.fromhex(ALICE[2:])
+    assert to_addr(as_bytes) == Address(ALICE)
+
+    # Garbage inputs raise ERR_BAD_ADDRESS
+    for bad in ("not-an-address", "0x1234", b"short", 2 ** 200, True, None, 3.14):
+        with pytest.raises(Exception) as exc_info:
+            to_addr(bad)
+        assert str(exc_info.value).startswith("ERR_BAD_ADDRESS")
+
+
+def test_20_registrar_flow_with_int_address_input():
+    gl.message.sender_address = OWNER
+    ledger = PriceLedger()
+
+    # Studio passes the address as an int - must land on the same key as the hex form
+    ledger.add_registrar(int(ALICE, 16))
+    assert ledger.is_registrar(ALICE) is True
+
+    gl.message.sender_address = ALICE
+    p_id = ledger.register_product("https://shop.com/int-addr", int(MERCHANT, 16))
+    prod = ledger.get_product(p_id)
+    assert prod["merchant"] == ledger_mod._to_address(MERCHANT)
