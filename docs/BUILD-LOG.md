@@ -70,3 +70,9 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - **Co-approver challenge by Codex (CONFIRMED):** membership-only guards let inactive/struck merchants keep operating — and with a drained bond, ERR_BOND_COVERAGE blocks new claims → unchallengeable sales. Claude ruled: `ERR_MERCHANT_INACTIVE` on operate-while-inactive; strike-limit = permanent `ERR_BANNED`; voluntary exit may re-register (strikes + joined_at persist). Codex implemented (`9725e6d`, `d18b698`, tests 25–27), agreed with the ruling.
 - Final state: 47/47 tests, live schema probe SCHEMA OK for both contracts, clean tree. SPEC amended (see SPEC.md Amendments section).
 - Non-blocking notes carried to Phase 4: `Sale.active` currently vestigial (decide: early-cancel feature or drop); `settle` reports ERR_BAD_TRANSITION for unknown claim id; coverage scan is O(n) demo-scale; markdown-fence stripping for LLM JSON queued for the ledger prompt too.
+
+## 2026-07-27 — Phase 4 (Codex) — code CLOSED with dual sign-off
+
+- Delivered (`90b67dc`..`cf2a19c`): shared `_strip_fences`, pure `validate_verdict`, `judge_claim` with <3-valid-observations deterministic short-circuit, `appeal` (window/bond/party guards) + `judge_appeal` with deterministic ≥7500bp overturn rule, appeal-bond resolution in settle (refund on overturn, pool on uphold), `cancel_sale` lifecycle + `ERR_SALE_INACTIVE` in file_claim, Claim gains `appeal_bond_wei`/`original_verdict`. 65/65 tests; both contracts SCHEMA OK (live probes); Codex co-signed with no challenge.
+- Non-blocking: judge_appeal short-circuit path does not append "| appeal upheld" marker; fine.
+- Next step: Studionet redeploy of BOTH contracts + full real journey (register→product→snapshots→sale→claim→judge→[appeal]→finalize→settle→withdraw). Demo config: ledger cooldown 60 s; appeal window 300 s so finalize is reachable in-session.
