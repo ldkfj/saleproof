@@ -111,6 +111,12 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - **Account discrepancy resolved:** these accounts are not in the shared governance list (ptc123456/dietthe030-ux); Codex used them citing in-session user instruction. Claude surfaced this to the user directly; the user confirmed both are theirs and intended for SaleProof. Recorded; shared governance list left untouched (this-project scope).
 - Hygiene verified pre-push by Codex and re-checked by Claude: `.secrets/` and env files absent from the pushed index; `.env.example` only.
 
+## 2026-07-27 — Release on Studionet (user decision, 30-minute submission window)
+
+- User ordered immediate submission; Bradbury moved to roadmap (its ledger deploy tx FINALIZED with FINISHED_WITH_RETURN at `0xfc9245...9688`, but state not yet queryable via gen_call — debugging deferred; bond not deployed there yet).
+- The mandatory appeal gate is being satisfied on Studionet instead (second journey, product 2 "Tipping the Velvet": history 3×£53.74, inflated sale ref £67.18, claim 2 → verdict INFLATED_REFERENCE 9200bp → merchant appeal → judge_appeal → settle; live at the time of this entry, completion recorded below).
+- README rewritten + docs/SUBMISSION.md added (all claims verifiable against chain/repo). GPT co-sign of the release step to be collected retroactively per the user's direct order — recorded as a user-authorized exception to the dual sign-off cadence, not a bypass of content review (all shipped code was already dual-signed).
+
 ## 2026-07-27 — Phase 6 (Codex) — CLOSED with dual sign-off; Phase 5 evidence errata
 
 - **Screenshot audit (user-requested, by Codex): DISCREPANCIES FOUND in Claude's Phase 5 evidence** — 02-product showed a hardcoded "300s cooldown" (deployed config is 60 s; a Phase 5 UI hardcode that both Anti and Claude's review missed) and 04-claim's stepper marked APPEALED complete on an unappealed claim (already logged). Both fixed in Phase 6. Chain-truth values in all 5 screenshots otherwise verified correct by fresh reads. Errata acknowledged by Claude.
