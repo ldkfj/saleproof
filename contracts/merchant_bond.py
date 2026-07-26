@@ -1,6 +1,7 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 from genlayer import *
 from dataclasses import dataclass
+import json
 import time
 
 
@@ -15,6 +16,13 @@ VERDICT_INFLATED = "INFLATED_REFERENCE"
 VERDICT_DECEPTIVE = "DECEPTIVE"
 VERDICT_INSUFFICIENT = "INSUFFICIENT_EVIDENCE"
 VERDICT_NONE = ""
+
+ALLOWED_VERDICTS = {
+    VERDICT_GENUINE,
+    VERDICT_INFLATED,
+    VERDICT_DECEPTIVE,
+    VERDICT_INSUFFICIENT,
+}
 
 TRANSITIONS = {
     (STATE_OPEN, "judge"): STATE_JUDGED,
@@ -35,6 +43,43 @@ def _strip_fences(raw: str) -> str:
         if s.rstrip().endswith("```"):
             s = s.rstrip()[:-3]
     return s.strip()
+
+
+def validate_verdict(raw: str) -> tuple[str, int, str]:
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > 2048:
+        raise ValueError("ERR_VERDICT_INVALID: payload exceeds 2048 bytes")
+
+    try:
+        data = json.loads(_strip_fences(raw))
+    except Exception as e:
+        raise ValueError(f"ERR_VERDICT_INVALID: JSON parse error: {e}")
+
+    if not isinstance(data, dict):
+        raise ValueError("ERR_VERDICT_INVALID: expected JSON object")
+
+    expected_keys = {"verdict", "confidence_bp", "reasoning"}
+    if set(data.keys()) != expected_keys:
+        raise ValueError(
+            f"ERR_VERDICT_INVALID: keys must be exactly {expected_keys}"
+        )
+
+    verdict = data["verdict"]
+    if type(verdict) is not str or verdict not in ALLOWED_VERDICTS:
+        raise ValueError("ERR_VERDICT_INVALID: invalid verdict")
+
+    confidence_bp = data["confidence_bp"]
+    if type(confidence_bp) is not int:
+        raise ValueError("ERR_VERDICT_INVALID: confidence_bp must be an int")
+    if confidence_bp < 0 or confidence_bp > 10000:
+        raise ValueError("ERR_VERDICT_INVALID: confidence_bp out of range")
+
+    reasoning = data["reasoning"]
+    if type(reasoning) is not str or len(reasoning) > 400:
+        raise ValueError(
+            "ERR_VERDICT_INVALID: reasoning must be str <= 400 chars"
+        )
+
+    return (verdict, confidence_bp, reasoning)
 
 
 def _now() -> int:
