@@ -1,13 +1,21 @@
 import React from "react";
 
 const STATES = ["OPEN", "JUDGED", "APPEALED", "FINAL", "SETTLED"];
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-export const StateStepper: React.FC<{ currentState: string }> = ({ currentState }) => {
-  const currentIndex = STATES.indexOf(currentState);
+export const StateStepper: React.FC<{ currentState: string; appellant?: string }> = ({
+  currentState,
+  appellant,
+}) => {
+  const appealed =
+    currentState === "APPEALED" ||
+    Boolean(appellant && appellant.toLowerCase() !== ZERO_ADDRESS);
+  const visibleStates = appealed ? STATES : STATES.filter((state) => state !== "APPEALED");
+  const currentIndex = visibleStates.indexOf(currentState);
 
   return (
     <div className="stepper" aria-label="Claim State Machine Progress">
-      {STATES.map((state, idx) => {
+      {visibleStates.map((state, idx) => {
         const isCompleted = idx < currentIndex;
         const isActive = idx === currentIndex;
 

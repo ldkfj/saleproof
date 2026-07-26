@@ -14,7 +14,11 @@ export const StateBadge: React.FC<{ state: string }> = ({ state }) => {
 
 export const VerdictBadge: React.FC<{ verdict: string }> = ({ verdict }) => {
   if (!verdict) {
-    return <span className="badge badge-inactive">UNJUDGED</span>;
+    return (
+      <span className="badge badge-inactive" title="UNJUDGED" aria-label="Verdict: UNJUDGED">
+        UNJUDGED
+      </span>
+    );
   }
 
   let icon = "❓";
@@ -40,7 +44,11 @@ export const VerdictBadge: React.FC<{ verdict: string }> = ({ verdict }) => {
   }
 
   return (
-    <span className={`badge verdict-${verdict}`}>
+    <span
+      className={`badge verdict-${verdict}`}
+      title={verdict}
+      aria-label={`Verdict: ${verdict}`}
+    >
       <span>{icon}</span> {label}
     </span>
   );
