@@ -130,9 +130,12 @@ class PriceLedger(gl.Contract):
     @gl.public.view
     def get_recent_observations(self, product_id: u64, k: u64) -> list[dict]:
         all_obs = self.get_observations(product_id)
+        if k == 0:
+            return []
         if k >= len(all_obs):
             return all_obs
         return all_obs[-k:]
+
 
     @gl.public.view
     def get_product_count(self) -> u64:

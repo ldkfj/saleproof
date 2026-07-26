@@ -205,3 +205,25 @@ def test_10_product_count_and_sequential_ids():
     assert id2 == 2
     assert id3 == 3
     assert ledger.get_product_count() == 3
+
+
+def test_11_get_recent_observations_k_zero():
+    gl.message.sender_address = OWNER
+    ledger = PriceLedger()
+    ledger.add_registrar(ALICE)
+    gl.message.sender_address = ALICE
+
+    p_id = ledger.register_product("https://shop.com/hat", MERCHANT)
+    obs = Observation(
+        price_cents=1500,
+        currency="USD",
+        observed_at=1700000000,
+        watcher=BOB,
+        ok=True,
+        note="Hat",
+    )
+    ledger.observations[p_id].append(obs)
+
+    recent0 = ledger.get_recent_observations(p_id, 0)
+    assert recent0 == []
+
