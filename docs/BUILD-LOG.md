@@ -51,3 +51,11 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 
 - Codex re-audited HEAD `068e3d3` (full hash `068e3d30d0e157d0c12f46ffc28207d19a70c8a4`): fix verified, no regressions, no new findings, 20/20 tests, schema probe OK, clean working tree.
 - Dual sign-off complete (Claude + Codex agree). PriceLedger cleared for Studio deployment.
+
+## 2026-07-26 — Phase 2 CLOSED: Studio deployment verified end-to-end
+
+- Contract `0xb93fB70B3056CAbDeD3818840f50E3B5dfAc31dd` (Studionet). Full chain verified: deploy → add_registrar → register_product → snapshot(1) → get_observations(1), every tx FINALIZED + SUCCESS.
+- snapshot tx `0xa233d2b5...6a409e`: equivalence output `{found: true, currency: GBP, price_cents: 5177, note: "A Light in the Attic"}`; on-chain observation matches (watcher `0x7885...2339`, observed_at 1785077586).
+- Real-world behavior: several validator LLMs emitted markdown-fenced JSON → `validate_extraction` rejected them → 2 leader rotations → clean-JSON leader accepted. Firewall works as designed.
+- Improvement queued (non-blocking, next contract iteration): deterministically strip markdown code fences before json.loads, and extend the prompt with "no markdown fences" — reduces rotations without widening the decision space.
+- Note: Studionet persistence is temporary; the ledger will be redeployed alongside MerchantBond during Phase 4 integration.
