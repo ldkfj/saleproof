@@ -26,6 +26,17 @@ TRANSITIONS = {
 
 
 # keep in sync with price_ledger.py
+def _strip_fences(raw: str) -> str:
+    """Deterministically remove one leading/trailing markdown code fence (``` or ```json) and surrounding whitespace. No other repair."""
+    s = raw.strip()
+    if s.startswith("```"):
+        first_nl = s.find("\n")
+        s = s[first_nl + 1:] if first_nl != -1 else ""
+        if s.rstrip().endswith("```"):
+            s = s.rstrip()[:-3]
+    return s.strip()
+
+
 def _now() -> int:
     """Unix seconds; validator-synchronized by the GenVM runtime."""
     return int(time.time())
