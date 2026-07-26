@@ -232,6 +232,13 @@ class PriceLedger(gl.Contract):
             return all_obs
         return all_obs[-k:]
 
+    @gl.public.view
+    def get_config(self) -> dict:
+        return {
+            "owner": self.owner,
+            "snapshot_cooldown_s": self.snapshot_cooldown_s,
+            "max_observations": self.max_observations,
+        }
 
     @gl.public.view
     def get_product_count(self) -> u64:
