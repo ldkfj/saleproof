@@ -131,3 +131,7 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 
 - Journey 2 (merchant2 `Velvet Books` 0xf324...824C, product 2 Tipping the Velvet, history 3x5374 GBP): inflated sale ref 6718 -> claim 2 -> judge INFLATED_REFERENCE 9200bp -> merchant appeal (0.5 GEN) -> judge_appeal UPHELD (reasoning suffixed '| appeal upheld') -> settle: buyer +0.2 GEN, bond 2->1.9 GEN +1 strike, appeal bond forfeited to pool (pool_wei = 0.5 GEN exact) -> withdraw. All txs FINALIZED+SUCCESS.
 - Every contract mechanism has now executed on-chain for real. GPT retroactive co-sign of the release step queued.
+
+## 2026-07-27 — Repo hygiene post-release
+
+- AI workspace gate files untracked from the public repo (kept locally); internal account references redacted at HEAD (`51000ac`). User decision: git history left untouched (no rewrite/force-push) — low exposure, preserves the incremental-commit record for reviewers.
