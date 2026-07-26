@@ -76,3 +76,11 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - Delivered (`90b67dc`..`cf2a19c`): shared `_strip_fences`, pure `validate_verdict`, `judge_claim` with <3-valid-observations deterministic short-circuit, `appeal` (window/bond/party guards) + `judge_appeal` with deterministic ≥7500bp overturn rule, appeal-bond resolution in settle (refund on overturn, pool on uphold), `cancel_sale` lifecycle + `ERR_SALE_INACTIVE` in file_claim, Claim gains `appeal_bond_wei`/`original_verdict`. 65/65 tests; both contracts SCHEMA OK (live probes); Codex co-signed with no challenge.
 - Non-blocking: judge_appeal short-circuit path does not append "| appeal upheld" marker; fine.
 - Next step: Studionet redeploy of BOTH contracts + full real journey (register→product→snapshots→sale→claim→judge→[appeal]→finalize→settle→withdraw). Demo config: ledger cooldown 60 s; appeal window 300 s so finalize is reachable in-session.
+
+## 2026-07-27 — Studionet deployment: FULL JOURNEY VERIFIED (awaiting GPT co-sign)
+
+- Ledger `0x26aA8E0af993665e02A14408f75221e1951926C1` (cooldown 60 s, cap 500); Bond `0xDa121e6fF503eC2F13101df37Cf05aD38E93544F` (min bond 2 GEN, deposit 0.1, appeal bond 0.5, window 300 s, strikes 3); registrar wired and verified.
+- Two wallets: merchant `0x7885...2339` (user, via Studio UI), buyer `0xE049...4A9c` (generated, funded via `sim_fundAccount`, driven via genlayer-js — Studio's value input only takes whole GEN, so fractional-wei payables are sent programmatically).
+- Journey: register_merchant(2 GEN) → add_product(books.toscrape) → emit landed (product 1) → 3 snapshots, all ok=true GBP 5177 → announce_sale(ref 6500, 2000 bp, 24 h) → file_claim tx `0x0576eb94...04b4` → judge_claim tx `0x3a7af4ee...65bd` ⇒ **INFLATED_REFERENCE, 10000 bp**, reasoning cites on-chain 5177 vs claimed 6500 under the Omnibus standard → finalize `0xa077f882...9bfd` → settle `0x84ca6b0f...13ad2` → withdraw `0xd021a931...9d45a`.
+- Settlement math exact: buyer withdrawable 0.2 GEN (deposit + 5% bond), merchant bond 2→1.9 GEN, strikes 1, claim SETTLED, withdrawable zeroed after withdraw.
+- Tooling: genlayer-js read/write harness in session scratchpad (`glread/`) — reusable for Phase 6 integration checks.
