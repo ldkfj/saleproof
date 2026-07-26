@@ -8,22 +8,38 @@ export const SettlementCard: React.FC<{ claim: Claim; merchant?: Merchant | null
 }) => {
   const depositWei = claim.deposit_wei;
   const bondWei = merchant ? merchant.bond_wei : 0n;
+  const isSettled = claim.state === "SETTLED";
 
   let buyerPayout = 0n;
   let merchantPayout = 0n;
   let poolPayout = 0n;
   let bondSlash = 0n;
+  let slashLabel = "";
   let strikeIssued = false;
 
   if (claim.verdict === "GENUINE") {
     merchantPayout = depositWei / 2n;
     poolPayout = depositWei - merchantPayout;
   } else if (claim.verdict === "INFLATED_REFERENCE") {
-    bondSlash = (bondWei * 500n) / 10000n; // 5%
+    if (isSettled) {
+      const preBond = (bondWei * 10000n) / 9500n;
+      bondSlash = preBond - bondWei;
+      slashLabel = "5% of bond at settlement";
+    } else {
+      bondSlash = (bondWei * 500n) / 10000n;
+      slashLabel = "5% of current bond";
+    }
     buyerPayout = depositWei + bondSlash;
     strikeIssued = true;
   } else if (claim.verdict === "DECEPTIVE") {
-    bondSlash = (bondWei * 1000n) / 10000n; // 10%
+    if (isSettled) {
+      const preBond = (bondWei * 10000n) / 9000n;
+      bondSlash = preBond - bondWei;
+      slashLabel = "10% of bond at settlement";
+    } else {
+      bondSlash = (bondWei * 1000n) / 10000n;
+      slashLabel = "10% of current bond";
+    }
     buyerPayout = depositWei + bondSlash;
     strikeIssued = true;
   } else if (claim.verdict === "INSUFFICIENT_EVIDENCE") {
@@ -34,7 +50,7 @@ export const SettlementCard: React.FC<{ claim: Claim; merchant?: Merchant | null
     <div className="card" style={{ background: "var(--bg-elevated)", border: "1px solid #374151" }}>
       <div className="card-header">
         <h3 className="card-title">
-          <span>⚖️</span> Settlement Breakdown
+          <span>⚖️</span> {isSettled ? "Settlement Breakdown" : "Projected settlement"}
         </h3>
         <span className={`badge state-${claim.state}`}>{claim.state}</span>
       </div>
@@ -45,10 +61,14 @@ export const SettlementCard: React.FC<{ claim: Claim; merchant?: Merchant | null
             Buyer Return / Compensation
           </div>
           <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: "#34d399" }}>
+            {isSettled && bondSlash > 0n ? "≈ " : ""}
             {weiToGen(buyerPayout)}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>
-            Deposit ({weiToGen(depositWei)}) {bondSlash > 0n ? `+ Slash (${weiToGen(bondSlash)})` : ""}
+            Deposit ({weiToGen(depositWei)}){" "}
+            {bondSlash > 0n
+              ? `+ Slash (${isSettled ? "≈ " : ""}${weiToGen(bondSlash)})`
+              : ""}
           </div>
         </div>
 
@@ -57,8 +77,11 @@ export const SettlementCard: React.FC<{ claim: Claim; merchant?: Merchant | null
             Merchant Bond Impact
           </div>
           <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: bondSlash > 0n ? "#f87171" : "var(--text-main)" }}>
-            {bondSlash > 0n ? `-${weiToGen(bondSlash)}` : "No Slash"}
+            {bondSlash > 0n ? `${isSettled ? "≈ " : ""}-${weiToGen(bondSlash)}` : "No Slash"}
           </div>
+          {bondSlash > 0n && (
+            <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>{slashLabel}</div>
+          )}
           <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>
             Strike Penalty: {strikeIssued ? "⚠️ +1 Strike" : "None"}
           </div>
@@ -82,12 +105,14 @@ export const SettlementCard: React.FC<{ claim: Claim; merchant?: Merchant | null
           fontSize: 11,
           fontStyle: "italic",
           color: "var(--text-subtle)",
-          borderTop: "1px stroke var(--border-color)",
+          borderTop: "1px solid var(--border-color)",
           paddingTop: 8,
           marginTop: 8,
         }}
       >
-        * Figures derived from contract settlement rules.
+        {isSettled && bondSlash > 0n
+          ? "* Back-derived from the current bond; exact if no other bond changes occurred since settlement."
+          : "* Figures derived from contract settlement rules."}
       </div>
     </div>
   );
