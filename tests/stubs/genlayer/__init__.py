@@ -26,12 +26,6 @@ class DynArray(list):
 class Message:
     def __init__(self):
         self.sender_address: Address = "0x0000000000000000000000000000000000000000"
-        self.timestamp: u64 = 1700000000
-
-
-class Block:
-    def __init__(self):
-        self.timestamp: u64 = 1700000000
 
 
 class Public:
@@ -89,7 +83,6 @@ class EqPrinciple:
 class GL:
     def __init__(self):
         self.message = Message()
-        self.block = Block()
         self.public = Public()
         self.Contract = Contract
         self.nondet = Nondet(self)

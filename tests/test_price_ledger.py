@@ -1,5 +1,6 @@
 import pytest
 from genlayer import gl
+import contracts.price_ledger as ledger_mod
 from contracts.price_ledger import PriceLedger, Observation, validate_extraction
 
 
@@ -12,7 +13,6 @@ MERCHANT = "0x4444444444444444444444444444444444444444"
 @pytest.fixture(autouse=True)
 def reset_gl():
     gl.message.sender_address = OWNER
-    gl.message.timestamp = 1700000000
     gl._fake_page = ""
     gl._fake_llm_output = ""
     gl._last_url = ""
@@ -77,13 +77,13 @@ def test_4_register_product_by_non_registrar():
     assert str(exc_info.value).startswith("ERR_NOT_REGISTRAR")
 
 
-def test_5_happy_path_register():
+def test_5_happy_path_register(monkeypatch):
     gl.message.sender_address = OWNER
     ledger = PriceLedger()
     ledger.add_registrar(ALICE)
 
     gl.message.sender_address = ALICE
-    gl.message.timestamp = 1710000000
+    monkeypatch.setattr(ledger_mod, "_now", lambda: 1710000000)
     p_id = ledger.register_product("https://shop.com/item1", MERCHANT)
     assert p_id == 1
 
@@ -256,7 +256,7 @@ def test_12_snapshot_guards():
     assert str(exc_info2.value).startswith("ERR_INACTIVE")
 
 
-def test_13_snapshot_cooldown():
+def test_13_snapshot_cooldown(monkeypatch):
     gl.message.sender_address = OWNER
     ledger = PriceLedger(snapshot_cooldown_s=300)
     ledger.add_registrar(ALICE)
@@ -264,7 +264,8 @@ def test_13_snapshot_cooldown():
 
     p_id = ledger.register_product("https://shop.com/shoes", MERCHANT)
 
-    gl.message.timestamp = 1700000000
+    t0 = 1700000000
+    monkeypatch.setattr(ledger_mod, "_now", lambda: t0)
     gl._fake_page = "Product price $49.99"
     gl._fake_llm_output = '{"found": true, "price_cents": 4999, "currency": "USD", "note": "Shoes"}'
 
@@ -272,19 +273,18 @@ def test_13_snapshot_cooldown():
     ledger.snapshot(p_id)
     assert len(ledger.get_observations(p_id)) == 1
 
-    # Second snapshot within cooldown (200s < 300s) raises ERR_COOLDOWN
-    gl.message.timestamp = 1700000200
+    # Second snapshot at the same time (0s < 300s) raises ERR_COOLDOWN
     with pytest.raises(Exception) as exc_info:
         ledger.snapshot(p_id)
     assert str(exc_info.value).startswith("ERR_COOLDOWN")
 
-    # Advancing time past cooldown (350s > 300s) succeeds
-    gl.message.timestamp = 1700000350
+    # Advancing time past cooldown (301s > 300s) succeeds
+    monkeypatch.setattr(ledger_mod, "_now", lambda: t0 + ledger.snapshot_cooldown_s + 1)
     ledger.snapshot(p_id)
     assert len(ledger.get_observations(p_id)) == 2
 
 
-def test_14_snapshot_cap():
+def test_14_snapshot_cap(monkeypatch):
     gl.message.sender_address = OWNER
     ledger = PriceLedger(snapshot_cooldown_s=100, max_observations=2)
     ledger.add_registrar(ALICE)
@@ -295,22 +295,22 @@ def test_14_snapshot_cap():
     gl._fake_page = "Watch $100"
     gl._fake_llm_output = '{"found": true, "price_cents": 10000, "currency": "USD", "note": "Watch"}'
 
-    gl.message.timestamp = 1700000000
+    monkeypatch.setattr(ledger_mod, "_now", lambda: 1700000000)
     ledger.snapshot(p_id)
 
-    gl.message.timestamp = 1700000200
+    monkeypatch.setattr(ledger_mod, "_now", lambda: 1700000200)
     ledger.snapshot(p_id)
 
     assert len(ledger.get_observations(p_id)) == 2
 
     # Third snapshot raises ERR_OBS_CAP
-    gl.message.timestamp = 1700000400
+    monkeypatch.setattr(ledger_mod, "_now", lambda: 1700000400)
     with pytest.raises(Exception) as exc_info:
         ledger.snapshot(p_id)
     assert str(exc_info.value).startswith("ERR_OBS_CAP")
 
 
-def test_15_snapshot_happy_path():
+def test_15_snapshot_happy_path(monkeypatch):
     gl.message.sender_address = OWNER
     ledger = PriceLedger()
     ledger.add_registrar(ALICE)
@@ -320,7 +320,7 @@ def test_15_snapshot_happy_path():
     p_id = ledger.register_product(url, MERCHANT)
 
     gl.message.sender_address = BOB
-    gl.message.timestamp = 1700001000
+    monkeypatch.setattr(ledger_mod, "_now", lambda: 1700001000)
     gl._fake_page = "Blue Shoes for Sale - Special Price $49.99!"
     gl._fake_llm_output = '{"found": true, "price_cents": 4999, "currency": "USD", "note": "Blue Shoes"}'
 
@@ -343,7 +343,7 @@ def test_15_snapshot_happy_path():
     assert "Output ONLY a JSON object" in gl._last_prompt
 
 
-def test_16_snapshot_not_found_path():
+def test_16_snapshot_not_found_path(monkeypatch):
     gl.message.sender_address = OWNER
     ledger = PriceLedger()
     ledger.add_registrar(ALICE)
@@ -352,7 +352,7 @@ def test_16_snapshot_not_found_path():
     p_id = ledger.register_product("https://shop.com/out-of-stock", MERCHANT)
 
     gl.message.sender_address = BOB
-    gl.message.timestamp = 1700002000
+    monkeypatch.setattr(ledger_mod, "_now", lambda: 1700002000)
     gl._fake_page = "Product is currently out of stock."
     gl._fake_llm_output = '{"found": false, "price_cents": 0, "currency": "USD", "note": "no price"}'
 
@@ -409,7 +409,7 @@ def test_17_validate_extraction_adversarial_suite():
         assert str(exc_info.value).startswith("ERR_EXTRACT_INVALID")
 
 
-def test_18_snapshot_failed_extraction_cooldown():
+def test_18_snapshot_failed_extraction_cooldown(monkeypatch):
     gl.message.sender_address = OWNER
     ledger = PriceLedger(snapshot_cooldown_s=300)
     ledger.add_registrar(ALICE)
@@ -417,7 +417,7 @@ def test_18_snapshot_failed_extraction_cooldown():
 
     p_id = ledger.register_product("https://shop.com/coat", MERCHANT)
 
-    gl.message.timestamp = 1700000000
+    monkeypatch.setattr(ledger_mod, "_now", lambda: 1700000000)
     gl._fake_page = "Garbage page content"
     gl._fake_llm_output = "NOT_JSON_GARBAGE"
 
@@ -435,5 +435,4 @@ def test_18_snapshot_failed_extraction_cooldown():
 
     assert len(ledger.get_observations(p_id)) == 1
     assert ledger.get_observations(p_id)[0]["price_cents"] == 8000
-
 
