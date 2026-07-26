@@ -17,8 +17,9 @@ const PAGES = [
   {
     route: "/product/1",
     file: "02-product.png",
-    expect: ["a-light-in-the-attic", "£51.77", "0x7885"],
+    expect: ["a-light-in-the-attic", "£51.77", "0x7885", "60s Cooldown Enforced"],
     minObservations: 3,
+    cooldownSeconds: 60,
   },
   {
     route: "/sale/1",
@@ -75,6 +76,9 @@ for (const p of PAGES) {
     console.log(`FAIL — missing: ${missing.join(" | ")}`);
   } else {
     console.log("OK");
+    if (p.cooldownSeconds) {
+      console.log(`  Ledger cooldown UI: ${p.cooldownSeconds}s`);
+    }
   }
 }
 

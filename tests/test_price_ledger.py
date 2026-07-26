@@ -506,3 +506,14 @@ def test_22_fence_only_payload_still_fails_strict_parser():
     with pytest.raises(ValueError) as exc_info:
         validate_extraction("```json\n```")
     assert str(exc_info.value).startswith("ERR_EXTRACT_INVALID")
+
+
+def test_23_get_config_round_trip():
+    gl.message.sender_address = OWNER
+    ledger = PriceLedger(snapshot_cooldown_s=123, max_observations=456)
+
+    assert ledger.get_config() == {
+        "owner": ledger_mod._to_address(OWNER),
+        "snapshot_cooldown_s": 123,
+        "max_observations": 456,
+    }
