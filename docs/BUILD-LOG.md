@@ -59,3 +59,14 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - Real-world behavior: several validator LLMs emitted markdown-fenced JSON → `validate_extraction` rejected them → 2 leader rotations → clean-JSON leader accepted. Firewall works as designed.
 - Improvement queued (non-blocking, next contract iteration): deterministically strip markdown code fences before json.loads, and extend the prompt with "no markdown fences" — reduces rotations without widening the decision space.
 - Note: Studionet persistence is temporary; the ledger will be redeployed alongside MerchantBond during Phase 4 integration.
+
+## 2026-07-26 — Governance update: dual sign-off hierarchy
+
+- New hierarchy (same-day amendment): Codex = logic engineer + co-approver (codes ALL contract/backend logic; every step closes only when both Claude and Codex agree); Antigravity = frontend/UI only. Gate files refreshed from template (`2c861e3`). Phase 3, drafted for Anti, was reassigned to Codex before any Anti work started.
+
+## 2026-07-26 — Phase 3 (Codex) — CLOSED with dual sign-off
+
+- Delivered: `contracts/merchant_bond.py` (state machine, pure `compute_settlement` + invariant, merchant lifecycle, sales with cross-contract product validation, claims with bond-coverage guard, pull-payment settle/withdraw, views) + 24 tests + stub extensions. 7 commits (`0b2f6e6`..`35cc0b9`).
+- **Co-approver challenge by Codex (CONFIRMED):** membership-only guards let inactive/struck merchants keep operating — and with a drained bond, ERR_BOND_COVERAGE blocks new claims → unchallengeable sales. Claude ruled: `ERR_MERCHANT_INACTIVE` on operate-while-inactive; strike-limit = permanent `ERR_BANNED`; voluntary exit may re-register (strikes + joined_at persist). Codex implemented (`9725e6d`, `d18b698`, tests 25–27), agreed with the ruling.
+- Final state: 47/47 tests, live schema probe SCHEMA OK for both contracts, clean tree. SPEC amended (see SPEC.md Amendments section).
+- Non-blocking notes carried to Phase 4: `Sale.active` currently vestigial (decide: early-cancel feature or drop); `settle` reports ERR_BAD_TRANSITION for unknown claim id; coverage scan is O(n) demo-scale; markdown-fence stripping for LLM JSON queued for the ledger prompt too.

@@ -241,6 +241,17 @@ Escalation per governance: Anti 1 fail → Codex (2 attempts) → Claude impleme
 
 What it does / problem / why GenLayer (the one-liner in §0) / how to use step-by-step / contract files + addresses + explorer + live URL / roadmap line (separate, clearly future).
 
+## Amendments — 2026-07-26 (dual-signed: Claude + Codex, Phase 3)
+
+These supersede the corresponding parts of §3.2, §4, §5 above:
+
+1. **Money units:** all stakes/deposits/payouts are native GEN **wei** (`u256`), compared directly against `gl.message.value`. "Cents" survives only for web-observed product prices in PriceLedger.
+2. **Payouts** are basis points **of the merchant's current bond** (unit-consistent): GENUINE → buyer 0, merchant deposit//2, pool remainder; INFLATED_REFERENCE → buyer deposit + 5% bond, strike; DECEPTIVE → buyer deposit + 10% bond, strike; INSUFFICIENT_EVIDENCE → deposit refunded. Pure function `compute_settlement` with conservation invariant.
+3. **Pull-payments:** `settle` only bookkeeps into a `withdrawable` ledger; recipients call `withdraw()` (zero-entry-first, then documented `emit_transfer`). No push transfers in settle.
+4. **`announce_sale` takes `product_id` directly** and validates ownership/active via synchronous cross-contract view to PriceLedger; `add_product` registers via async `emit(on='finalized')` (no return value — frontend resolves the id from ledger views).
+5. **Merchant lifecycle:** inactive merchants cannot `top_up_bond`/`add_product`/`announce_sale` (`ERR_MERCHANT_INACTIVE`). Strike-limit deactivation is a permanent ban (`ERR_BANNED` on re-register). Voluntary exit (withdraw_bond) allows re-registration with fresh ≥min bond; `strikes` and `joined_at` persist for lifetime accountability.
+6. **Claim state machine** (implemented): `OPEN→judge→JUDGED→{appeal→APPEALED→judge_appeal→FINAL | finalize→FINAL}→settle→SETTLED`, single transition table, `finalize_unappealed` gated by appeal window.
+
 ## Related
 
 Governance sources this spec is bound by: [[AI Project Orchestration Rules]], [[Antigravity Knowledge Rules]], `E:\Genlayer\governance\AI-HIERARCHY.md`.
