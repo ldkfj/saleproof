@@ -33,7 +33,6 @@ export const ClaimDetail: React.FC = () => {
       return;
     }
 
-    setLoading(true);
     setError(null);
 
     try {

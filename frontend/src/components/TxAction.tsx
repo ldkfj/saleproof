@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { WriteRequest } from "../lib/tx";
 import {
   EXPLORER_TX_URL,
   FinalizedTransactionError,
   submitAndFinalize,
+  waitForFinalizedSuccess,
 } from "../lib/tx";
 import { useWallet } from "../lib/wallet";
 
@@ -17,6 +18,7 @@ interface TxActionProps {
   disabledReason?: string;
   consensus?: boolean;
   className?: string;
+  persistenceKey?: string;
 }
 
 function errorMessage(error: unknown): string {
@@ -32,6 +34,7 @@ export const TxAction: React.FC<TxActionProps> = ({
   disabledReason,
   consensus = false,
   className = "btn-primary",
+  persistenceKey,
 }) => {
   const { client, address, refreshBalance } = useWallet();
   const [phase, setPhase] = useState<TxPhase>("idle");
@@ -39,6 +42,8 @@ export const TxAction: React.FC<TxActionProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const resumeStarted = useRef(false);
+  const storageKey = persistenceKey ? `saleproof.tx.${persistenceKey}` : null;
 
   useEffect(() => {
     if (phase !== "pending") return;
@@ -52,6 +57,39 @@ export const TxAction: React.FC<TxActionProps> = ({
   const pending = phase === "submitting" || phase === "pending";
   const reason = !address ? "Connect a wallet first." : disabledReason;
 
+  useEffect(() => {
+    if (!client || !address || !storageKey || resumeStarted.current) return;
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) return;
+
+    try {
+      const stored = JSON.parse(raw) as { hash?: string; startedAt?: number };
+      if (!stored.hash?.match(/^0x[a-fA-F0-9]{64}$/)) {
+        sessionStorage.removeItem(storageKey);
+        return;
+      }
+      const storedHash = stored.hash as `0x${string}`;
+      resumeStarted.current = true;
+      setHash(storedHash);
+      setStartedAt(stored.startedAt ?? Date.now());
+      setPhase("pending");
+      setError(null);
+      void waitForFinalizedSuccess(client, storedHash)
+        .then(async () => {
+          setPhase("success");
+          sessionStorage.removeItem(storageKey);
+          await Promise.all([onSuccess(), refreshBalance()]);
+        })
+        .catch((nextError) => {
+          setError(errorMessage(nextError));
+          setPhase("error");
+          sessionStorage.removeItem(storageKey);
+        });
+    } catch {
+      sessionStorage.removeItem(storageKey);
+    }
+  }, [address, client, onSuccess, refreshBalance, storageKey]);
+
   const run = async () => {
     if (!client || !address || disabled || pending) return;
     setPhase("submitting");
@@ -63,12 +101,20 @@ export const TxAction: React.FC<TxActionProps> = ({
       await submitAndFinalize(client, request(), (nextHash) => {
         setHash(nextHash);
         setPhase("pending");
+        if (storageKey) {
+          sessionStorage.setItem(
+            storageKey,
+            JSON.stringify({ hash: nextHash, startedAt: Date.now() }),
+          );
+        }
       });
       setPhase("success");
+      if (storageKey) sessionStorage.removeItem(storageKey);
       await Promise.all([onSuccess(), refreshBalance()]);
     } catch (nextError) {
       setError(errorMessage(nextError));
       setPhase("error");
+      if (storageKey) sessionStorage.removeItem(storageKey);
     }
   };
 

@@ -50,7 +50,6 @@ export const SaleDetail: React.FC = () => {
       return;
     }
 
-    setLoading(true);
     setError(null);
 
     try {

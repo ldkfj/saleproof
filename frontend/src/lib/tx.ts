@@ -1,5 +1,10 @@
 import { TransactionStatus } from "genlayer-js/types";
-import type { CalldataEncodable, GenLayerTransaction } from "genlayer-js/types";
+import type {
+  CalldataEncodable,
+  GenLayerTransaction,
+  LeaderReceipt,
+  TransactionHash,
+} from "genlayer-js/types";
 import type { WalletClient } from "./wallet";
 
 export const EXPLORER_TX_URL = "https://explorer-studio.genlayer.com/transactions";
@@ -77,9 +82,9 @@ export class FinalizedTransactionError extends Error {
   }
 }
 
-function leaderReceipts(transaction: GenLayerTransaction): Array<Record<string, unknown>> {
+function leaderReceipts(transaction: GenLayerTransaction): LeaderReceipt[] {
   const receipts = transaction.consensus_data?.leader_receipt;
-  return Array.isArray(receipts) ? (receipts as Array<Record<string, unknown>>) : [];
+  return Array.isArray(receipts) ? receipts : [];
 }
 
 export function isExecutionSuccess(transaction: GenLayerTransaction): boolean {
@@ -117,9 +122,18 @@ export async function submitAndFinalize(
   })) as `0x${string}`;
   onHash(hash);
 
+  return waitForFinalizedSuccess(client, hash);
+}
+
+export async function waitForFinalizedSuccess(
+  client: WalletClient,
+  hash: `0x${string}`,
+): Promise<GenLayerTransaction> {
   const receipt = await client.waitForTransactionReceipt({
-    hash,
+    hash: hash as TransactionHash,
     status: TransactionStatus.FINALIZED,
+    interval: 3_000,
+    retries: 200,
   });
   if (!isExecutionSuccess(receipt)) {
     throw new FinalizedTransactionError(transactionFailure(receipt));

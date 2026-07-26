@@ -18,6 +18,7 @@ const PAGES = [
     route: "/product/1",
     file: "02-product.png",
     expect: ["a-light-in-the-attic", "£51.77", "0x7885"],
+    minObservations: 3,
   },
   {
     route: "/sale/1",
@@ -60,6 +61,14 @@ for (const p of PAGES) {
   }
   const text = (await page.innerText("body")).toLowerCase();
   const missing = p.expect.filter((e) => !text.includes(e.toLowerCase()));
+  if (p.minObservations) {
+    const observationCount = Number(
+      text.match(/snapshots recorded\s+(\d+)\s+observations/i)?.[1] ?? 0,
+    );
+    if (observationCount < p.minObservations) {
+      missing.push(`at least ${p.minObservations} observations`);
+    }
+  }
   await page.screenshot({ path: path.join(OUT, p.file), fullPage: true });
   if (missing.length) {
     failures++;

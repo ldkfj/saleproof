@@ -34,7 +34,6 @@ export const ProductDetail: React.FC = () => {
       return;
     }
 
-    setLoading(true);
     setError(null);
 
     try {
@@ -180,6 +179,7 @@ export const ProductDetail: React.FC = () => {
                   : undefined
             }
             consensus
+            persistenceKey={`snapshot:${product.id}`}
           />
         </div>
 
