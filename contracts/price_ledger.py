@@ -1,5 +1,56 @@
 # { "Depends": "py-genlayer:test" }
 from genlayer import *
+import json
+
+
+
+def validate_extraction(raw: str) -> tuple[bool, int, str, str]:
+    """Parse and strictly validate the LLM price-extraction output.
+
+    Returns (found, price_cents, currency, note). Raises ValueError('ERR_EXTRACT_INVALID: <reason>') on ANY violation.
+    """
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > 1024:
+        raise ValueError("ERR_EXTRACT_INVALID: payload exceeds 1024 bytes")
+
+    try:
+        data = json.loads(raw.strip())
+    except Exception as e:
+        raise ValueError(f"ERR_EXTRACT_INVALID: JSON parse error: {e}")
+
+    if not isinstance(data, dict):
+        raise ValueError("ERR_EXTRACT_INVALID: expected JSON object")
+
+    expected_keys = {"found", "price_cents", "currency", "note"}
+    if set(data.keys()) != expected_keys:
+        raise ValueError(f"ERR_EXTRACT_INVALID: keys must be exactly {expected_keys}")
+
+    found = data["found"]
+    if type(found) is not bool:
+        raise ValueError("ERR_EXTRACT_INVALID: found must be a bool")
+
+    price_cents = data["price_cents"]
+    if type(price_cents) is not int:
+        raise ValueError("ERR_EXTRACT_INVALID: price_cents must be an int")
+
+    if price_cents < 0 or price_cents > 1_000_000_000:
+        raise ValueError("ERR_EXTRACT_INVALID: price_cents out of range")
+
+    if found and price_cents < 1:
+        raise ValueError("ERR_EXTRACT_INVALID: price_cents must be >= 1 when found is true")
+
+    if not found and price_cents != 0:
+        raise ValueError("ERR_EXTRACT_INVALID: price_cents must be 0 when found is false")
+
+    currency = data["currency"]
+    if type(currency) is not str or currency not in {"USD", "EUR", "GBP", "JPY", "VND"}:
+        raise ValueError("ERR_EXTRACT_INVALID: invalid currency")
+
+    note = data["note"]
+    if type(note) is not str or len(note) > 200:
+        raise ValueError("ERR_EXTRACT_INVALID: note must be str <= 200 chars")
+
+    return (found, price_cents, currency, note)
+
 
 
 @allow_storage
