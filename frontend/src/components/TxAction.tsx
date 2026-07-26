@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { WriteRequest } from "../lib/tx";
 import {
-  EXPLORER_TX_URL,
+  explorerTxUrl,
   FinalizedTransactionError,
   submitAndFinalize,
   waitForFinalizedSuccess,
@@ -132,7 +132,7 @@ export const TxAction: React.FC<TxActionProps> = ({
 
       {hash && (
         <a
-          href={`${EXPLORER_TX_URL}/${hash}`}
+          href={explorerTxUrl(hash)}
           target="_blank"
           rel="noreferrer"
           className="mono"

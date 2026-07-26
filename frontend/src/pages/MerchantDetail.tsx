@@ -5,6 +5,7 @@ import type { Merchant, Sale } from "../lib/contracts";
 import { ActiveBadge, StrikePips } from "../components/Badge";
 import { CardSkeleton, TableSkeleton } from "../components/Skeleton";
 import { centsToPrice, timeAgo, weiToGen } from "../lib/format";
+import { GL_NETWORK_LABEL } from "../lib/chain";
 
 export const MerchantDetail: React.FC = () => {
   const { addr } = useParams<{ addr: string }>();
@@ -63,7 +64,8 @@ export const MerchantDetail: React.FC = () => {
         <div className="error-icon">🏪</div>
         <h2 className="error-title">Merchant Not Registered</h2>
         <p className="error-desc">
-          Address <code className="mono">{addr}</code> is not registered as a bonded merchant on Studionet.
+          Address <code className="mono">{addr}</code> is not registered as a bonded merchant on{" "}
+          {GL_NETWORK_LABEL}.
         </p>
         <Link to="/" className="btn-primary">
           Back to Overview

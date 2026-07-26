@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useProtocolData } from "../lib/store";
 import { useWallet } from "../lib/wallet";
 import { shortAddr, weiToGen } from "../lib/format";
+import { GL_NETWORK_LABEL, IS_STUDIONET } from "../lib/chain";
 
 export const Header: React.FC = () => {
   const { secondsAgo, refresh, loading } = useProtocolData();
@@ -40,7 +41,7 @@ export const Header: React.FC = () => {
       <div className="header-brand">
         <Link to="/" className="brand-title">
           <span>🛡️ SALEPROOF</span>
-          <span className="brand-tag">Studionet</span>
+          <span className="brand-tag">{GL_NETWORK_LABEL}</span>
         </Link>
       </div>
 
@@ -62,7 +63,7 @@ export const Header: React.FC = () => {
                 <strong className="mono">{shortAddr(address)}</strong>
                 <span className="mono">{balance === null ? "…" : weiToGen(balance)}</span>
               </div>
-              {providerKind === "burner" && (
+              {providerKind === "burner" && IS_STUDIONET && (
                 <button className="btn-search" onClick={() => void fundBurner()} disabled={funding}>
                   {funding ? "Funding…" : "Fund 1 GEN"}
                 </button>
@@ -80,13 +81,15 @@ export const Header: React.FC = () => {
               >
                 Connect MetaMask
               </button>
-              <button
-                className="btn-search"
-                onClick={() => void connectBurner()}
-                disabled={connecting}
-              >
-                Dev wallet — Studionet only
-              </button>
+              {IS_STUDIONET && (
+                <button
+                  className="btn-search"
+                  onClick={() => void connectBurner()}
+                  disabled={connecting}
+                >
+                  Dev wallet — Studionet only
+                </button>
+              )}
             </>
           )}
           {walletError && (
@@ -110,7 +113,7 @@ export const Header: React.FC = () => {
           </button>
         </form>
 
-        <div className="status-indicator" title="Connected to GenLayer Studionet">
+        <div className="status-indicator" title={`Connected to GenLayer ${GL_NETWORK_LABEL}`}>
           <span className="status-dot" />
           <span>Updated {secondsAgo}s ago</span>
           <button

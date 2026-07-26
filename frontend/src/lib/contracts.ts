@@ -64,6 +64,12 @@ export interface ProtocolConfig {
   pool_wei: bigint;
 }
 
+export interface LedgerConfig {
+  owner: string;
+  snapshot_cooldown_s: number;
+  max_observations: number;
+}
+
 function num(val: any): number {
   if (typeof val === "bigint") return Number(val);
   if (typeof val === "number") return val;
@@ -77,6 +83,19 @@ function big(val: any): bigint {
 }
 
 export const ledgerContract = {
+  async getConfig(): Promise<LedgerConfig> {
+    const cfg: any = await client.readContract({
+      address: LEDGER_ADDRESS as `0x${string}`,
+      functionName: "get_config",
+      args: [],
+    });
+    return {
+      owner: String(cfg.owner || ""),
+      snapshot_cooldown_s: num(cfg.snapshot_cooldown_s),
+      max_observations: num(cfg.max_observations),
+    };
+  },
+
   async getProductCount(): Promise<number> {
     const res = await client.readContract({
       address: LEDGER_ADDRESS as `0x${string}`,

@@ -7,7 +7,7 @@ import { TxAction } from "../components/TxAction";
 import { Sparkline } from "../components/Sparkline";
 import { CardSkeleton } from "../components/Skeleton";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
-import { BOND_ADDRESS } from "../lib/chain";
+import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
 import { useWallet } from "../lib/wallet";
 import { useProtocolData } from "../lib/store";
 
@@ -127,7 +127,9 @@ export const SaleDetail: React.FC = () => {
       <div className="error-state">
         <div className="error-icon">🏷️</div>
         <h2 className="error-title">Sale #{id} Not Found</h2>
-        <p className="error-desc">No sale promotion exists with this ID on Studionet.</p>
+        <p className="error-desc">
+          No sale promotion exists with this ID on {GL_NETWORK_LABEL}.
+        </p>
         <Link to="/" className="btn-primary">
           Back to Overview
         </Link>

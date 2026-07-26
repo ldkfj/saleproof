@@ -6,10 +6,16 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { createAccount, createClient, generatePrivateKey, chains } from "genlayer-js";
+import { createAccount, createClient, generatePrivateKey } from "genlayer-js";
+import {
+  GL_CHAIN,
+  GL_CHAIN_ID_HEX,
+  GL_NETWORK_LABEL,
+  GL_RPC_URL,
+  GL_EXPLORER_URL,
+  IS_STUDIONET,
+} from "./chain";
 
-const STUDIONET_CHAIN_ID = 61999;
-const STUDIONET_CHAIN_ID_HEX = `0x${STUDIONET_CHAIN_ID.toString(16)}`;
 const BURNER_KEY_STORAGE = "saleproof.studionet.burner-private-key";
 
 export type ProviderKind = "injected" | "burner";
@@ -46,14 +52,19 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function ensureStudionet(provider: Eip1193Provider): Promise<void> {
+async function ensureSelectedNetwork(provider: Eip1193Provider): Promise<void> {
   const currentChainId = await provider.request({ method: "eth_chainId" });
-  if (currentChainId === STUDIONET_CHAIN_ID_HEX) return;
+  if (
+    typeof currentChainId === "string" &&
+    currentChainId.toLowerCase() === GL_CHAIN_ID_HEX.toLowerCase()
+  ) {
+    return;
+  }
 
   try {
     await provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: STUDIONET_CHAIN_ID_HEX }],
+      params: [{ chainId: GL_CHAIN_ID_HEX }],
     });
   } catch (error) {
     const code =
@@ -66,17 +77,17 @@ async function ensureStudionet(provider: Eip1193Provider): Promise<void> {
       method: "wallet_addEthereumChain",
       params: [
         {
-          chainId: STUDIONET_CHAIN_ID_HEX,
-          chainName: "GenLayer Studionet",
-          nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
-          rpcUrls: ["https://studio.genlayer.com/api"],
-          blockExplorerUrls: ["https://explorer-studio.genlayer.com"],
+          chainId: GL_CHAIN_ID_HEX,
+          chainName: GL_CHAIN.name,
+          nativeCurrency: GL_CHAIN.nativeCurrency,
+          rpcUrls: [GL_RPC_URL],
+          blockExplorerUrls: [GL_EXPLORER_URL],
         },
       ],
     });
     await provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: STUDIONET_CHAIN_ID_HEX }],
+      params: [{ chainId: GL_CHAIN_ID_HEX }],
     });
   }
 }
@@ -120,11 +131,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
       if (!accounts[0]?.startsWith("0x")) throw new Error("The wallet returned no account.");
-      await ensureStudionet(provider);
+      await ensureSelectedNetwork(provider);
 
       const nextAddress = accounts[0] as `0x${string}`;
       const nextClient = createClient({
-        chain: chains.studionet,
+        chain: GL_CHAIN,
         account: nextAddress,
         provider,
       });
@@ -142,6 +153,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setConnecting(true);
     setError(null);
     try {
+      if (!IS_STUDIONET) {
+        throw new Error("The dev burner is available on Studionet only.");
+      }
       let privateKey = localStorage.getItem(BURNER_KEY_STORAGE) as `0x${string}` | null;
       if (!privateKey?.startsWith("0x") || privateKey.length !== 66) {
         privateKey = generatePrivateKey();
@@ -149,7 +163,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const account = createAccount(privateKey);
-      const nextClient = createClient({ chain: chains.studionet, account });
+      const nextClient = createClient({ chain: GL_CHAIN, account });
       setAddress(account.address);
       setClient(nextClient);
       setProviderKind("burner");
@@ -169,7 +183,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const fundBurner = useCallback(async () => {
-    if (!client || !address || providerKind !== "burner") return;
+    if (!client || !address || providerKind !== "burner" || !IS_STUDIONET) return;
     setFunding(true);
     setError(null);
     try {
@@ -179,7 +193,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       await refreshBalance();
     } catch (nextError) {
-      setError(`Studionet faucet failed: ${errorMessage(nextError)}`);
+      setError(`${GL_NETWORK_LABEL} faucet failed: ${errorMessage(nextError)}`);
     } finally {
       setFunding(false);
     }

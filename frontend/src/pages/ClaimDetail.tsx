@@ -8,7 +8,7 @@ import { SettlementCard } from "../components/SettlementCard";
 import { TxAction } from "../components/TxAction";
 import { CardSkeleton } from "../components/Skeleton";
 import { shortAddr, timeAgo, weiToGen } from "../lib/format";
-import { BOND_ADDRESS } from "../lib/chain";
+import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
 import { useWallet } from "../lib/wallet";
 import { useProtocolData } from "../lib/store";
 
@@ -76,7 +76,9 @@ export const ClaimDetail: React.FC = () => {
       <div className="error-state">
         <div className="error-icon">⚖️</div>
         <h2 className="error-title">Claim #{id} Not Found</h2>
-        <p className="error-desc">No dispute claim exists with this ID on Studionet.</p>
+        <p className="error-desc">
+          No dispute claim exists with this ID on {GL_NETWORK_LABEL}.
+        </p>
         <Link to="/" className="btn-primary">
           Back to Overview
         </Link>

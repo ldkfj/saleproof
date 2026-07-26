@@ -7,11 +7,11 @@ import { TxAction } from "../components/TxAction";
 import { ActiveBadge } from "../components/Badge";
 import { CardSkeleton } from "../components/Skeleton";
 import { centsToPrice, shortAddr, timeAgo } from "../lib/format";
-import { BOND_ADDRESS, LEDGER_ADDRESS } from "../lib/chain";
+import { BOND_ADDRESS, GL_NETWORK_LABEL, LEDGER_ADDRESS } from "../lib/chain";
 import { useWallet } from "../lib/wallet";
 import { useProtocolData } from "../lib/store";
 
-const SNAPSHOT_COOLDOWN_S = 60;
+const FALLBACK_SNAPSHOT_COOLDOWN_S = 60;
 
 export const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,7 +25,9 @@ export const ProductDetail: React.FC = () => {
   const [productUrl, setProductUrl] = useState("");
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   const { address } = useWallet();
-  const { refresh } = useProtocolData();
+  const { ledgerConfig, ledgerConfigUnavailable, refresh } = useProtocolData();
+  const snapshotCooldownS =
+    ledgerConfig?.snapshot_cooldown_s ?? FALLBACK_SNAPSHOT_COOLDOWN_S;
 
   const loadProduct = useCallback(async () => {
     if (!productId || isNaN(productId)) {
@@ -70,7 +72,7 @@ export const ProductDetail: React.FC = () => {
 
   const lastObservation = observations.at(-1);
   const cooldownRemaining = lastObservation
-    ? Math.max(0, lastObservation.observed_at + SNAPSHOT_COOLDOWN_S - now)
+    ? Math.max(0, lastObservation.observed_at + snapshotCooldownS - now)
     : 0;
 
   if (loading) {
@@ -87,7 +89,9 @@ export const ProductDetail: React.FC = () => {
       <div className="error-state">
         <div className="error-icon">🔍</div>
         <h2 className="error-title">Product #{id} Not Found</h2>
-        <p className="error-desc">No registered product exists with this ID on Studionet.</p>
+        <p className="error-desc">
+          No registered product exists with this ID on {GL_NETWORK_LABEL}.
+        </p>
         <Link to="/" className="btn-primary">
           Back to Overview
         </Link>
@@ -152,7 +156,7 @@ export const ProductDetail: React.FC = () => {
           <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
             {cooldownRemaining > 0
               ? `Cooldown: ${cooldownRemaining}s remaining`
-              : `${SNAPSHOT_COOLDOWN_S}s Cooldown Enforced`}
+              : `${snapshotCooldownS}s Cooldown Enforced`}
           </span>
         </div>
 
@@ -194,8 +198,11 @@ export const ProductDetail: React.FC = () => {
           }}
         >
           ℹ️ <strong>Snapshot Rule:</strong> Anyone can trigger price snapshots for active products after a
-          {` ${SNAPSHOT_COOLDOWN_S}-second cooldown.`} Failed page fetches (ok=false) are recorded as dead-page
+          {` ${snapshotCooldownS}-second cooldown.`} Failed page fetches (ok=false) are recorded as dead-page
           evidence.
+          {ledgerConfigUnavailable && (
+            <span> Config unavailable; using 60s fallback.</span>
+          )}
         </div>
       </div>
 

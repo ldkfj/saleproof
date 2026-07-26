@@ -5,9 +5,12 @@ import type {
   LeaderReceipt,
   TransactionHash,
 } from "genlayer-js/types";
+import { GL_EXPLORER_URL } from "./chain";
 import type { WalletClient } from "./wallet";
 
-export const EXPLORER_TX_URL = "https://explorer-studio.genlayer.com/transactions";
+export function explorerTxUrl(hash: string): string {
+  return `${GL_EXPLORER_URL}/transactions/${hash}`;
+}
 
 export const ERROR_MESSAGES: Record<string, string> = {
   ERR_ACTIVE_SALES: "End or cancel all active sales before withdrawing the bond.",

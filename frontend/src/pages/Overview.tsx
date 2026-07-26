@@ -7,7 +7,7 @@ import { TableSkeleton } from "../components/Skeleton";
 import { TxAction } from "../components/TxAction";
 import { ActiveBadge, StateBadge, VerdictBadge } from "../components/Badge";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
-import { BOND_ADDRESS } from "../lib/chain";
+import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
 import { genToWei } from "../lib/tx";
 import { useWallet } from "../lib/wallet";
 
@@ -106,7 +106,8 @@ export const Overview: React.FC = () => {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Protocol Dashboard</h1>
         <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-          Real-time on-chain verification log, registered product evidence, and buyer dispute claims on Studionet.
+          Real-time on-chain verification log, registered product evidence, and buyer dispute claims on{" "}
+          {GL_NETWORK_LABEL}.
         </p>
       </div>
 

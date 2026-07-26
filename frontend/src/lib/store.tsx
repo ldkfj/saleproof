@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { ledgerContract, bondContract } from "./contracts";
-import type { Product, Observation, Sale, Claim, ProtocolConfig } from "./contracts";
-import { isConfigValid } from "./chain";
+import type {
+  Product,
+  Observation,
+  Sale,
+  Claim,
+  ProtocolConfig,
+  LedgerConfig,
+} from "./contracts";
+import { GL_NETWORK_LABEL, isConfigValid } from "./chain";
 
 export interface ProtocolStoreState {
   isConfigValid: boolean;
@@ -17,6 +24,8 @@ export interface ProtocolStoreState {
   claimCount: number;
   claims: Claim[];
   config: ProtocolConfig | null;
+  ledgerConfig: LedgerConfig | null;
+  ledgerConfigUnavailable: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -37,6 +46,30 @@ export const ProtocolProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [claimCount, setClaimCount] = useState<number>(0);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [config, setConfig] = useState<ProtocolConfig | null>(null);
+  const [ledgerConfig, setLedgerConfig] = useState<LedgerConfig | null>(null);
+  const [ledgerConfigUnavailable, setLedgerConfigUnavailable] = useState(false);
+
+  useEffect(() => {
+    if (!isConfigValid) return;
+
+    let active = true;
+    void ledgerContract
+      .getConfig()
+      .then((nextConfig) => {
+        if (!active) return;
+        setLedgerConfig(nextConfig);
+        setLedgerConfigUnavailable(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLedgerConfig(null);
+        setLedgerConfigUnavailable(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!isConfigValid) {
@@ -108,7 +141,7 @@ export const ProtocolProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSecondsAgo(0);
     } catch (err: any) {
       console.error("Error fetching protocol data:", err);
-      setError(err?.message || "Failed to fetch on-chain data from Studionet.");
+      setError(err?.message || `Failed to fetch on-chain data from ${GL_NETWORK_LABEL}.`);
     } finally {
       setLoading(false);
     }
@@ -162,6 +195,8 @@ export const ProtocolProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         claimCount,
         claims,
         config,
+        ledgerConfig,
+        ledgerConfigUnavailable,
         refresh: fetchData,
       }}
     >
