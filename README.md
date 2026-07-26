@@ -19,6 +19,12 @@ saleproof/
 └── README.md
 ```
 
+## Phase 1 Implementation
+
+- **PriceLedger Contract**: Implemented deterministic storage schema, constructor, registrar management (`add_registrar`, `remove_registrar`), product registration with strict URL validation, deactivation, and view methods (`get_product`, `get_observations`, `get_recent_observations`, `get_product_count`, `is_registrar`).
+- **GenLayer Stub**: Pure-Python runtime stub in `tests/stubs/genlayer/` for isolated unit testing.
+- **Unit Suite**: Pure-Python unit test suite covering all deterministic logic and guard error messages.
+
 ## Running Tests
 
 To run the unit tests with pytest:
@@ -26,3 +32,4 @@ To run the unit tests with pytest:
 ```bash
 python -m pytest -v
 ```
+
