@@ -1,5 +1,4 @@
 from dataclasses import dataclass as std_dataclass
-from typing import Any
 
 u64 = int
 Address = str
@@ -58,12 +57,51 @@ class Contract:
         return instance
 
 
+class Web:
+    def __init__(self, gl_ref):
+        self._gl = gl_ref
+
+    def render(self, url: str, mode: str = "text") -> str:
+        self._gl._last_url = url
+        self._gl._last_mode = mode
+        return self._gl._fake_page
+
+
+class Nondet:
+    def __init__(self, gl_ref):
+        self._gl = gl_ref
+        self.web = Web(gl_ref)
+
+    def exec_prompt(self, prompt: str) -> str:
+        self._gl._last_prompt = prompt
+        return self._gl._fake_llm_output
+
+
+class EqPrinciple:
+    def __init__(self, gl_ref):
+        self._gl = gl_ref
+
+    def prompt_comparative(self, fn, criteria: str):
+        self._gl._last_criteria = criteria
+        return fn()
+
+
 class GL:
     def __init__(self):
         self.message = Message()
         self.block = Block()
         self.public = Public()
         self.Contract = Contract
+        self.nondet = Nondet(self)
+        self.eq_principle = EqPrinciple(self)
+
+        # Settable fakes & recorded call history for tests
+        self._fake_page: str = ""
+        self._fake_llm_output: str = ""
+        self._last_url: str = ""
+        self._last_mode: str = ""
+        self._last_prompt: str = ""
+        self._last_criteria: str = ""
 
 
 gl = GL()
