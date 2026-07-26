@@ -56,3 +56,93 @@ class PriceLedger(gl.Contract):
             raise Exception("ERR_NOT_REGISTRAR")
         self.registrars[addr] = False
 
+    @gl.public.write
+    def register_product(self, url: str, merchant: Address) -> u64:
+        if not self.registrars.get(gl.message.sender_address, False):
+            raise Exception("ERR_NOT_REGISTRAR")
+        if not url or not url.strip():
+            raise Exception("ERR_URL_EMPTY")
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise Exception("ERR_URL_SCHEME")
+        if len(url) > 500:
+            raise Exception("ERR_URL_TOO_LONG")
+
+        for p_id in range(1, self.product_count + 1):
+            if p_id in self.products:
+                p = self.products[p_id]
+                if p.active and p.url == url:
+                    raise Exception("ERR_URL_DUPLICATE")
+
+        self.product_count += 1
+        product_id = self.product_count
+        now = gl.message.timestamp
+        self.products[product_id] = Product(
+            id=product_id,
+            url=url,
+            merchant=merchant,
+            registered_at=now,
+            active=True,
+        )
+        self.observations[product_id] = DynArray()
+        return product_id
+
+    @gl.public.write
+    def deactivate_product(self, product_id: u64):
+        if not self.registrars.get(gl.message.sender_address, False):
+            raise Exception("ERR_NOT_REGISTRAR")
+        if product_id not in self.products or product_id == 0 or product_id > self.product_count:
+            raise Exception("ERR_NO_PRODUCT")
+        p = self.products[product_id]
+        if not p.active:
+            raise Exception("ERR_INACTIVE")
+        p.active = False
+
+    @gl.public.view
+    def get_product(self, product_id: u64) -> dict:
+        if product_id not in self.products or product_id == 0 or product_id > self.product_count:
+            raise Exception("ERR_NO_PRODUCT")
+        p = self.products[product_id]
+        return {
+            "id": p.id,
+            "url": p.url,
+            "merchant": p.merchant,
+            "registered_at": p.registered_at,
+            "active": p.active,
+        }
+
+    @gl.public.view
+    def get_observations(self, product_id: u64) -> list[dict]:
+        if product_id not in self.products or product_id == 0 or product_id > self.product_count:
+            raise Exception("ERR_NO_PRODUCT")
+        obs_list = self.observations.get(product_id, [])
+        return [
+            {
+                "price_cents": o.price_cents,
+                "currency": o.currency,
+                "observed_at": o.observed_at,
+                "watcher": o.watcher,
+                "ok": o.ok,
+                "note": o.note,
+            }
+            for o in obs_list
+        ]
+
+    @gl.public.view
+    def get_recent_observations(self, product_id: u64, k: u64) -> list[dict]:
+        all_obs = self.get_observations(product_id)
+        if k >= len(all_obs):
+            return all_obs
+        return all_obs[-k:]
+
+    @gl.public.view
+    def get_product_count(self) -> u64:
+        return self.product_count
+
+    @gl.public.view
+    def is_registrar(self, addr: Address) -> bool:
+        return bool(self.registrars.get(addr, False))
+
+
+# snapshot() arrives in Phase 2 (nondet flow) — see docs/SPEC.md §3.1
+
+
