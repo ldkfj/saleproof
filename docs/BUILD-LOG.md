@@ -126,3 +126,8 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - Deviation accepted: evidence run consumed two snapshots (timeout on the first attempt; both finalized successfully — extra genuine activity).
 
 - **2026-07-27 — GPT co-sign: APPROVE.** Independent re-verification: deployed code byte-identical to HEAD (SHA-256 both contracts), constructor calldata confirmed, all 5 buyer txs resolved FINALIZED+SUCCESS, withdrawal child transfer of exactly 0.2 GEN confirmed, settlement arithmetic re-derived from HEAD's compute_settlement. Non-blocking: two discarded failed attempts in history (quoted-URL ERR_URL_SCHEME, wrong-deposit ERR_DEPOSIT from a third wallet) — guards behaved correctly. **Condition accepted by both signers: on-chain `appeal → judge_appeal → settle` is a MANDATORY pre-submission gate; any failure reopens Phase 4 integration.** Step CLOSED with dual sign-off.
+
+## 2026-07-27 — MANDATORY APPEAL GATE: COMPLETE on Studionet
+
+- Journey 2 (merchant2 `Velvet Books` 0xf324...824C, product 2 Tipping the Velvet, history 3x5374 GBP): inflated sale ref 6718 -> claim 2 -> judge INFLATED_REFERENCE 9200bp -> merchant appeal (0.5 GEN) -> judge_appeal UPHELD (reasoning suffixed '| appeal upheld') -> settle: buyer +0.2 GEN, bond 2->1.9 GEN +1 strike, appeal bond forfeited to pool (pool_wei = 0.5 GEN exact) -> withdraw. All txs FINALIZED+SUCCESS.
+- Every contract mechanism has now executed on-chain for real. GPT retroactive co-sign of the release step queued.
