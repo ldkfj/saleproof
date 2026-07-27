@@ -66,9 +66,9 @@ The app ships a **dev burner wallet** (Studionet only) with a one-click faucet, 
 
 ## Roadmap
 
-- **Testnet Bradbury migration** — in progress: the PriceLedger deploy transaction has already finalized on Bradbury; the app is network-switchable via a single `VITE_GL_NETWORK` env var and the production site will be repointed once the full contract pair is live there.
-- **Watcher incentives** — a small bounty per accepted snapshot, funded from the protocol pool (which already accumulates forfeited deposits and appeal bonds), so price histories grow without altruism.
-- **Merchant reputation as a public good** — PriceLedger is already queryable by any contract; expose bond size, strike history, and verdict record so marketplaces, lenders, or aggregators can price merchant trust on-chain.
-- **Sale watchlists & alerts** — follow a product and get notified when a sale is announced against its history, turning passive evidence into active consumer protection.
-- **Multi-currency normalization** — cross-currency price histories judged coherently (today mixed-currency history is conservatively treated as weak evidence).
-- **Scale hardening** — indexed coverage-reservation accounting (the current per-merchant scan is O(n), fine at demo scale) and pagination for large observation logs.
+- **Testnet Bradbury migration** - in progress: the PriceLedger deploy transaction has already finalized on Bradbury; the app is network-switchable via a single `VITE_GL_NETWORK` env var and the production site will be repointed once the full contract pair is live there.
+- **Watcher incentives** - a small bounty per accepted snapshot, funded from the protocol pool (which already accumulates forfeited deposits and appeal bonds), so price histories grow without altruism.
+- **Merchant reputation as a public good** - PriceLedger is already queryable by any contract; expose bond size, strike history, and verdict record so marketplaces, lenders, or aggregators can price merchant trust on-chain.
+- **Sale watchlists & alerts** - follow a product and get notified when a sale is announced against its history, turning passive evidence into active consumer protection.
+- **Multi-currency normalization** - cross-currency price histories judged coherently (today mixed-currency history is conservatively treated as weak evidence).
+- **Scale hardening** - indexed coverage-reservation accounting (the current per-merchant scan is O(n), fine at demo scale) and pagination for large observation logs.
