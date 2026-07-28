@@ -99,4 +99,24 @@ describe("transaction helpers", () => {
     expect(failure.code).toBe("ERR_SALE_ALREADY_CLAIMED");
     expect(failure.message).toContain("canonical claim");
   });
+
+  it("maps insufficient prepaid credit", () => {
+    const failure = transactionFailure({
+      consensus_data: {
+        final: true,
+        leader_receipt: [
+          {
+            mode: "leader",
+            execution_result: "ERROR",
+            result: {
+              status: "contract_error",
+              payload: "Exception: ERR_INSUFFICIENT_CREDIT",
+            },
+          },
+        ] as never,
+      },
+    });
+    expect(failure.code).toBe("ERR_INSUFFICIENT_CREDIT");
+    expect(failure.message).toContain("prepaid credit");
+  });
 });

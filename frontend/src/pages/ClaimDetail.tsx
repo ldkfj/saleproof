@@ -6,6 +6,7 @@ import { StateStepper } from "../components/StateStepper";
 import { VerdictBadge } from "../components/Badge";
 import { SettlementCard } from "../components/SettlementCard";
 import { TxAction } from "../components/TxAction";
+import { PrepaidTxAction } from "../components/PrepaidTxAction";
 import { CardSkeleton } from "../components/Skeleton";
 import { shortAddr, timeAgo, weiToGen } from "../lib/format";
 import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
@@ -149,15 +150,16 @@ export const ClaimDetail: React.FC = () => {
 
           {claim.state === "JUDGED" && (
             <>
-              <TxAction
+              <PrepaidTxAction
                 label={`Appeal · ${
                   config ? weiToGen(config.appeal_bond_wei) : "loading…"
                 } · ${appealRemaining}s left`}
+                requiredCredit={() => config?.appeal_bond_wei ?? 0n}
+                persistenceKey={`appeal-${claim.id}`}
                 request={() => ({
                   address: BOND_ADDRESS as `0x${string}`,
                   functionName: "appeal",
-                  args: [claim.id],
-                  value: config?.appeal_bond_wei ?? 0n,
+                  args: [claim.id, config?.appeal_bond_wei ?? 0n],
                 })}
                 onSuccess={refreshAfterWrite}
                 disabled={!config || !appealWindowOpen || !mayAppeal}

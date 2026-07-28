@@ -5,6 +5,7 @@ import { bondContract } from "../lib/contracts";
 import type { Merchant } from "../lib/contracts";
 import { TableSkeleton } from "../components/Skeleton";
 import { TxAction } from "../components/TxAction";
+import { PrepaidTxAction } from "../components/PrepaidTxAction";
 import { ActiveBadge, StateBadge, VerdictBadge } from "../components/Badge";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
 import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
@@ -143,13 +144,14 @@ export const Overview: React.FC = () => {
                   onChange={(event) => setBondInput(event.target.value)}
                 />
               </label>
-              <TxAction
+              <PrepaidTxAction
                 label={walletMerchant ? "Reactivate Merchant" : "Register Merchant"}
+                requiredCredit={() => genToWei(bondInput)}
+                persistenceKey="register-merchant"
                 request={() => ({
                   address: BOND_ADDRESS as `0x${string}`,
                   functionName: "register_merchant",
-                  args: [merchantName.trim()],
-                  value: genToWei(bondInput),
+                  args: [merchantName.trim(), genToWei(bondInput)],
                 })}
                 onSuccess={refreshAfterWrite}
                 disabled={
@@ -191,12 +193,14 @@ export const Overview: React.FC = () => {
                   onChange={(event) => setTopUpInput(event.target.value)}
                 />
               </label>
-              <TxAction
+              <PrepaidTxAction
                 label="Top Up Bond"
+                requiredCredit={() => genToWei(topUpInput)}
+                persistenceKey="top-up-bond"
                 request={() => ({
                   address: BOND_ADDRESS as `0x${string}`,
                   functionName: "top_up_bond",
-                  value: genToWei(topUpInput),
+                  args: [genToWei(topUpInput)],
                 })}
                 onSuccess={refreshAfterWrite}
                 disabled={(() => {

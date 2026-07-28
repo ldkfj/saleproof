@@ -4,6 +4,7 @@ import { bondContract, ledgerContract } from "../lib/contracts";
 import type { Sale, Observation, Merchant, Claim } from "../lib/contracts";
 import { ActiveBadge, StrikePips, StateBadge, VerdictBadge } from "../components/Badge";
 import { TxAction } from "../components/TxAction";
+import { PrepaidTxAction } from "../components/PrepaidTxAction";
 import { Sparkline } from "../components/Sparkline";
 import { CardSkeleton } from "../components/Skeleton";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
@@ -267,13 +268,14 @@ export const SaleDetail: React.FC = () => {
             }
             className="btn-search"
           />
-          <TxAction
+          <PrepaidTxAction
             label={`File Claim${config ? ` · ${weiToGen(config.claim_deposit_wei)}` : ""}`}
+            requiredCredit={() => config?.claim_deposit_wei ?? 0n}
+            persistenceKey={`file-claim-${sale.id}`}
             request={() => ({
               address: BOND_ADDRESS as `0x${string}`,
               functionName: "file_claim",
-              args: [sale.id],
-              value: config?.claim_deposit_wei ?? 0n,
+              args: [sale.id, config?.claim_deposit_wei ?? 0n],
             })}
             onSuccess={refreshAfterWrite}
             disabled={Boolean(fileClaimReason)}
