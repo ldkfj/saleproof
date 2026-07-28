@@ -85,7 +85,17 @@ or repository.
 6. Read and archive current configs, counts, registrar membership, material
    records, withdrawable balances, and `gen_getContractCode` for both contracts.
 7. Verify no transaction is merely pending or accepted. Evidence requires
-   FINALIZED and execution `SUCCESS`.
+   FINALIZED status and an actual receipt with `mode="leader"` whose
+   `execution_result` is `SUCCESS`. A validator receipt cannot substitute for
+   the leader result. All state readbacks used as evidence must explicitly use
+   `LATEST_FINAL`.
+
+Current Studionet accepts the legacy source request
+`gen_getContractCode([address])` but rejects the generic-node object form that
+carries a finalized status. Therefore source parity is valid only when that
+legacy read is coupled to the immediately verified FINALIZED, leader-`SUCCESS`
+deploy/upgrade transaction, writes remain paused, and the evidence record proves
+that no intervening upgrade occurred.
 
 ## Mandatory disposable Studionet rehearsal
 
@@ -183,6 +193,35 @@ source:
 
 Because Root stores no code history, “rollback” means submitting previously
 reviewed exact source bytes and then repeating source/state verification.
+
+## Studio/local workspace recovery without chain reset
+
+Loss of browser storage, a Studio workspace entry, the local `.env`, or a local
+checkout does not by itself mean the on-chain pair was lost. If both recorded
+addresses still expose code and finalized state, recover the workspace instead
+of redeploying:
+
+1. stop frontend writes and leave production addresses unchanged;
+2. restore the exact recorded Git commit in a clean checkout and recompute both
+   source hashes;
+3. reconnect the user-selected, recorded wallet and verify its active address
+   against the manifest owner and Root-upgrader readbacks; never infer identity
+   from the browser profile or place its key in the repository;
+4. in Studio, reopen or import each contract by its recorded address when the UI
+   supports that flow; otherwise reconstruct the read-only workspace through the
+   recorded Studionet RPC and exact source without sending a transaction;
+5. explicitly read `LATEST_FINAL` config, counts, representative state,
+   `is_upgrader`, MerchantBond-to-ledger linkage, and registrar membership;
+6. read deployed code using the Studio-compatible legacy request and apply the
+   finalized/no-intervening-upgrade coupling defined in Preflight;
+7. restore local frontend variables only from the verified manifest, then run
+   `verify-live.mjs` and the render check before resuming writes.
+
+If source differs but state is readable, do not redeploy or submit a blind
+upgrade. Enter a maintenance window and use the release-contract upgrade
+procedure after review, wallet verification, and the user's explicit deployment
+confirmation. If code/state is actually absent or the pair cannot be verified,
+follow the reset procedure below.
 
 ## Studionet reset or lost state
 

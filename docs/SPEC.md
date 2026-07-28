@@ -44,6 +44,33 @@ This is a Studionet demonstration. Studionet GEN is test value, not production m
 
 Wallet addresses are normalized through `_to_address` at public boundaries and when message senders are stored, compared, or used as map keys. Supported calldata representations are `Address`, 20-byte values, 40-hex-character strings with `0x`, and non-boolean integers fitting 160 bits. Invalid representations fail with `ERR_BAD_ADDRESS`.
 
+### 1.1 Trust-boundary matrix
+
+The table below is the release authority model. “Sender” means
+`gl.message.sender_address` normalized with `_to_address` before it is stored,
+compared, or used as a `TreeMap` key.
+
+| Actor / trigger | Entry point | Identity and gate | Result determiner | Override or privilege | State / value consequence |
+|---|---|---|---|---|---|
+| Deployment sender | both constructors | Sender becomes normalized `owner`; constructor calldata supplies a separately normalized, nonzero Root upgrader | Deterministic constructor guards | Establishes initial owner and Root authority only | Initializes configuration and empty counters; does not create products, sales, or claims |
+| Registered Root upgrader | `upgrade` on either contract | GenVM locked Root code slot checks the caller against `Root.upgraders`; contract owner status is irrelevant | Exact `new_code` bytes submitted by the authorized upgrader | Sole code-replacement authority; no in-contract method can add an upgrader | Replaces executable code while retaining storage bytes; no automatic schema migration or on-chain rollback history |
+| PriceLedger owner | `add_registrar`, `remove_registrar` | Sender must equal the normalized constructor owner | Deterministic membership guards | May change registrar membership, but cannot write products, observations, bonds, sales, claims, or verdicts directly | Flips one registrar-map entry |
+| Authorized PriceLedger registrar (normally MerchantBond for registration) | `register_product`, `deactivate_product` | PriceLedger normalizes the caller and requires its address in `registrars`; the `merchant` argument to registration is independently normalized | URL/product guards and registrar membership | May create/deactivate product records only; MerchantBond exposes only its merchant-triggered registration cross-call | Creates a product owned by the supplied merchant or marks an existing product inactive |
+| Merchant wallet | `register_merchant`, `top_up_bond`, `withdraw_bond` | Sender is the merchant key; active/banned/open-claim/live-sale guards apply; payable values come only from `gl.message.value` | Deterministic lifecycle and exact-value guards | May manage only its own merchant record and bond; reactivation preserves lifetime strikes and `joined_at` | Creates/reactivates/tops up a bond, or exits and routes the eligible bond to that sender’s pull-payment balance |
+| Merchant wallet | `add_product`, `announce_sale`, `cancel_sale` | Product addition and sale announcement require an active merchant; cancellation requires sale ownership but intentionally remains available after merchant deactivation | Deterministic product, history, currency, duration, ownership, and state guards; PriceLedger supplies frozen history | Cannot manufacture observations or cancel another merchant’s sale | Registers a linked product, freezes the observation boundary in a sale, or deactivates an unclaimed sale |
+| Watcher wallet | `snapshot` | Any sender may trigger; normalized sender is stored only after deterministic product/active/cap/cooldown guards pass | Validator-replicated web render, strict extraction, and equivalence principle | Chooses when to request an eligible snapshot, not the returned price/currency/note | Appends one bounded observation and records the watcher address |
+| Buyer wallet | `file_claim` | Sender becomes normalized buyer; self-claim, sale state, one-claim, exact deposit, and merchant bond-coverage guards apply | Deterministic guards and `gl.message.value` | May open one canonical claim on another merchant’s active sale | Locks the exact claim deposit, links claim to sale, and freezes buyer identity |
+| Eligible merchant or buyer | `appeal` | Normalized sender must be the losing-side merchant/buyer encoded by the standing verdict; exact appeal bond and window required | Deterministic role, state, time, and value guards | May request one second judgment; cannot choose the appeal outcome | Locks appeal bond and records appellant/original verdict |
+| Any wallet | `judge_claim`, `judge_appeal` | Caller identity is not trusted or stored; only claim state selects eligibility | Frozen on-chain history plus fresh validator web access; strict payload validation and consensus determine verdict/confidence | Caller can trigger consensus but cannot supply or override a verdict | Advances `OPEN -> JUDGED` or `APPEALED -> FINAL`; appeal overturn requires the independently recomputed 7,500-bp rule |
+| Any wallet | `finalize_unappealed`, `settle` | Caller identity is irrelevant; state and appeal-window guards are authoritative | `_now()` and deterministic state transition / `compute_settlement` arithmetic | Can advance a mature claim only; cannot redirect proceeds | Advances `JUDGED -> FINAL -> SETTLED`, applies bond slash/strike, and credits fixed pull-payment balances/pool |
+| Balance owner | `withdraw` | Normalized sender indexes only its own `withdrawable` entry | Stored balance and zero-before-transfer order | Cannot select another beneficiary | Zeroes that sender’s ledger entry before native-value transfer |
+| Read caller | all public views | Address arguments are normalized where present; no sender privilege | Finalized contract state | None | No storage or value change |
+
+Any-caller lifecycle methods expose liveness, not judgment authority. The Root
+upgrader is the only code override; neither owner nor registrar can directly
+alter merchant bonds, frozen sale evidence, claim verdicts, or settlement
+amounts.
+
 ## 2. Architecture
 
 ```text
@@ -65,6 +92,13 @@ Both contracts use the same exact runner header:
 ```python
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 ```
+
+`genvm-lint` currently emits informational warning `I200` for a newer runner.
+This release intentionally retains the reviewed hash above: current official
+upgradability documentation uses it and the live Studionet schema endpoint
+accepts both contracts with it. A runner change is a runtime/source change and
+must receive its own review, schema probe, rehearsal, and dual approval rather
+than being silently bundled into this release.
 
 Collections use `TreeMap` and `DynArray`; ordinary numeric storage is `u64` or `u256`. Map IDs use `u256` keys, while public IDs remain `u64`. Storage collections are declared as fields and are not reassigned in constructors.
 
@@ -336,7 +370,9 @@ Local evidence is necessary but not deployment evidence:
 5. frontend TypeScript, production build, Vitest, and headless render checks;
 6. environment-gated read-only source/config integration check;
 7. separately gated Root rehearsal on disposable contracts;
-8. corrected contract deployment with FINALIZED + SUCCESS receipts and source parity;
+8. corrected contract deployment with FINALIZED status, a `mode="leader"`
+   receipt whose execution result is `SUCCESS`, explicit `LATEST_FINAL`
+   readbacks, and source parity;
 9. multi-wallet live journeys covering the advertised primary and appeal paths;
 10. live UI readback from the same corrected addresses;
 11. Codex and anonymous co-review AI approval of the exact same commit and evidence package.

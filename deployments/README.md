@@ -5,8 +5,10 @@
 **No corrected release deployment is recorded yet.**
 
 The active manifest must remain incomplete until every required transaction is
-FINALIZED with execution `SUCCESS`, every readback matches, and deployed source
-hashes match the exact reviewed commit. Blank fields are not evidence.
+FINALIZED and its `mode="leader"` receipt has execution result `SUCCESS`, every
+evidence readback explicitly uses `LATEST_FINAL`, and deployed source hashes
+match the exact reviewed commit. Blank fields are not evidence; validator
+success cannot substitute for a failed or missing leader result.
 
 ## Canonical network
 
@@ -22,17 +24,37 @@ hashes match the exact reviewed commit. Blank fields are not evidence.
 
 | Field | Required value |
 |---|---|
-| Git commit | PENDING |
+| Source freeze commit | `08219a8af36e508587a4fe52ee79037f8be0e97f` |
+| Completed evidence-package commit | PENDING; recorded after live evidence is committed |
 | Clean tree verified | PENDING |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
 | MerchantBond SHA-256 | `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb` |
 | Runner | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
+| Contract classification | `UPGRADABLE` (both contracts; GenVM Root code slot) |
+| Runner advisory review | `I200` reviewed: retain pinned runner for this release; newer runner requires separate schema/rehearsal/dual review |
+| Recovery runbook | `docs/RECOVERY.md` |
 | Codex verdict | PENDING |
 | Anonymous co-review AI verdict | PENDING |
 
 Both reviewers must approve this exact revision and the same completed evidence
 package. A later source, deployment, environment, or documentation change
 invalidates those approvals.
+
+## Required identity and authorization gate
+
+| Field | Required value |
+|---|---|
+| User-selected deployment wallet / owner | PENDING USER SELECTION |
+| Verified active deployment address | PENDING |
+| User-selected Root upgrader wallet | PENDING USER SELECTION |
+| Verified active Root upgrader address | PENDING |
+| Explicit confirmation for PriceLedger deployment | PENDING |
+| Explicit confirmation for MerchantBond deployment | PENDING |
+| Explicit confirmation for registrar write | PENDING |
+
+Account or wallet history does not satisfy this table. Codex must ask which
+wallet to use, verify the active address and target, then obtain explicit
+confirmation before each release network write.
 
 ## Contract deployment record
 
@@ -47,29 +69,37 @@ invalidates those approvals.
 | Explorer link | PENDING | PENDING |
 | `gen_getContractCode` SHA-256 | PENDING | PENDING |
 | Local/deployed source parity | PENDING | PENDING |
+| Coupled FINALIZED leader-success receipt / no intervening upgrade | PENDING | PENDING |
 | Config readback | PENDING | PENDING |
 
 ### Constructor arguments
 
+Approved intended release calldata (actual encoded calldata and readback remain
+pending until deployment):
+
 PriceLedger:
 
 ```text
-upgrader_address: PENDING
-snapshot_cooldown_s: PENDING
-max_observations: PENDING
+upgrader_address: PENDING USER-SELECTION / VERIFIED ADDRESS
+snapshot_cooldown_s: 60
+max_observations: 500
 ```
 
 MerchantBond:
 
 ```text
-upgrader_address: PENDING
-ledger: PENDING
-min_bond_wei: PENDING
-claim_deposit_wei: PENDING
-appeal_bond_wei: PENDING
-appeal_window_s: PENDING
-strike_limit: PENDING
+upgrader_address: PENDING USER-SELECTION / VERIFIED ADDRESS
+ledger: PENDING ACTUAL PRICELEDGER ADDRESS FROM THIS MANIFEST
+min_bond_wei: 2000000000000000000
+claim_deposit_wei: 100000000000000000
+appeal_bond_wei: 500000000000000000
+appeal_window_s: 300
+strike_limit: 3
 ```
+
+No placeholder address may be encoded. The actual transaction calldata, sender,
+contract address, and finalized config readback must be added to the deployment
+record before this section is complete.
 
 ## Pair wiring
 
@@ -81,6 +111,11 @@ strike_limit: PENDING
 | PriceLedger owner readback | PENDING | PENDING |
 | MerchantBond owner readback | PENDING | PENDING |
 | Root upgrader membership on both contracts | PENDING | PENDING |
+
+On current Studionet, `gen_getContractCode` must use the legacy `[address]`
+request shape. Its parity result is accepted only when coupled to the recorded
+FINALIZED leader-`SUCCESS` deployment/upgrade receipt, a paused write window,
+and proof that no intervening upgrade occurred.
 
 The required order is:
 

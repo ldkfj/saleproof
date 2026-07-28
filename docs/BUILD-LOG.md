@@ -246,5 +246,37 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - Git-blob source hashes:
   PriceLedger `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`;
   MerchantBond `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb`.
+## 2026-07-28 — Pre-deployment evidence hardening (Codex) — LOCAL VERIFIED; ROOT REHEARSAL PENDING
 
-
+- Independent audits found that transaction success could be accepted from a
+  validator receipt or top-level SDK summary without proving the actual leader
+  result. Commit `08219a8af36e508587a4fe52ee79037f8be0e97f` now requires a
+  `mode="leader"` receipt with `execution_result="SUCCESS"` in the frontend and
+  Root rehearsal, rejects missing-leader evidence, and adds adversarial tests.
+- All 12 frontend contract reads, both live-verifier read wrappers, and all 22
+  Python integration view calls explicitly request `LATEST_FINAL`. Current
+  Studionet's legacy `gen_getContractCode([address])` constraint is tested and
+  coupled to finalized leader-success/no-intervening-upgrade evidence.
+- `docs/SPEC.md` now contains the actor/action trust-boundary matrix;
+  `docs/RECOVERY.md` covers Studio/local-workspace recovery without an on-chain
+  reset; the release manifest records the UPGRADABLE classification, intended
+  constructor values, identity/confirmation gates, and pending evidence fields.
+- `genvm-lint` warning `I200` was reviewed, not ignored: the newer advertised
+  runner is `1zr6nqk597d97kg0dyxg0shhrykx5v02zjgnyrajapy4wlqvfvwh`. This source
+  freeze retains `1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6`, which
+  current official upgradability documentation still shows and both live
+  Studionet schema probes accept. A runner change requires separate review.
+- Exact local evidence after the hardening: `85` unit/harness tests pass; `7`
+  Direct Mode tests pass; both contract lint checks pass; both typechecks report
+  no errors; TypeScript passes; production build completes; all `15` Vitest
+  tests pass; both live schema probes return `SCHEMA OK`; the two environment-
+  gated network tests skip safely when their opt-in variables are absent.
+- A previously created disposable pair remains at PriceLedger
+  `0xe6227B6C8305EEbdd6468cf4206C18e87bFB19f2` and MerchantBond
+  `0xBAd98e2A9f116A330E6Da062397775752eFC60dE`. It is not a release pair and does
+  not satisfy the Root rehearsal until all stored receipts are revalidated with
+  the strict leader rule, linked seed state is complete, and unauthorized /
+  authorized / restore paths pass.
+- No corrected release deployment, GitHub push, Vercel deployment, or submission
+  mutation was performed. Those actions remain behind the current user-selected
+  identity and explicit-confirmation gates.
