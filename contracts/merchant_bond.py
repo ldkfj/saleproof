@@ -72,6 +72,14 @@ def _strip_fences(raw: str) -> str:
 
 
 def validate_verdict(raw: str) -> tuple[str, int, str]:
+    """Parse and strictly validate the LLM claim judgment payload.
+
+    Returns (verdict, confidence_bp, reasoning).
+    Raises gl.vm.UserError('ERR_VERDICT_INVALID: <reason>') on ANY violation.
+    """
+    if isinstance(raw, dict):
+        raw = json.dumps(raw)
+
     if not isinstance(raw, str) or len(raw.encode("utf-8")) > 2048:
         raise gl.vm.UserError("ERR_VERDICT_INVALID: payload exceeds 2048 bytes")
 
@@ -110,6 +118,14 @@ def validate_verdict(raw: str) -> tuple[str, int, str]:
 
 def _now() -> int:
     """Unix seconds pinned to the GenVM transaction datetime."""
+    if hasattr(gl, "message_raw") and isinstance(gl.message_raw, dict) and "datetime" in gl.message_raw:
+        dt_val = gl.message_raw["datetime"]
+        if isinstance(dt_val, str) and dt_val:
+            try:
+                s = dt_val.replace("Z", "+00:00")
+                return int(datetime.fromisoformat(s).timestamp())
+            except Exception:
+                pass
     return int(datetime.now(timezone.utc).timestamp())
 
 
@@ -263,6 +279,12 @@ def compute_settlement(verdict: str, deposit_wei: int, bond_wei: int) -> dict:
 
 @gl.evm.contract_interface
 class _Recipient:
+    def __init__(self, addr=None):
+        pass
+
+    def emit_transfer(self, *, value):
+        pass
+
     class View:
         pass
 
@@ -299,6 +321,7 @@ class MerchantBond(gl.Contract):
         upgrader = _to_address(upgrader_address)
         if upgrader == Address("0x0000000000000000000000000000000000000000"):
             raise gl.vm.UserError("ERR_BAD_UPGRADER")
+        # VERIFY-AT-STUDIO: Root upgrader registration must be rehearsed on Studionet. Current Direct Mode does not prove Root locked-slot authorization.
         root = gl.storage.Root.get()
         root.upgraders.get().append(upgrader)
 
@@ -315,6 +338,7 @@ class MerchantBond(gl.Contract):
 
     @gl.public.view
     def is_upgrader(self, addr: Address) -> bool:
+        # VERIFY-AT-STUDIO: Root VLA iteration in is_upgrader must be rehearsed on Studionet. Current Direct Mode does not prove Root locked-slot authorization.
         candidate = _to_address(addr)
         for registered in gl.storage.Root.get().upgraders.get():
             if registered == candidate:
@@ -689,23 +713,52 @@ class MerchantBond(gl.Contract):
                 )
             )
             verdict, confidence_bp, reasoning = validate_verdict(raw)
+            should_overturn = (
+                verdict != standing_verdict
+                and confidence_bp >= 7500
+            )
             return {
                 "verdict": verdict,
                 "confidence_bp": confidence_bp,
                 "reasoning": reasoning,
+                "should_overturn": should_overturn,
             }
 
-        criteria = "Verdict labels must match exactly; confidence_bp values within 1500 of each other; reasoning may differ."
-        res = gl.eq_principle.prompt_comparative(fetch_and_rejudge, criteria)
+        def validator_fn(leader_res) -> bool:
+            if not isinstance(leader_res, gl.vm.Return):
+                return False
+            leader_data = getattr(
+            leader_res, "calldata", getattr(leader_res, "value", None)
+        )
+            if not isinstance(leader_data, dict):
+                return False
+            expected_keys = {"verdict", "confidence_bp", "reasoning", "should_overturn"}
+            if set(leader_data.keys()) != expected_keys:
+                return False
 
-        candidate_verdict = str(res["verdict"])
-        candidate_confidence_bp = u64(res["confidence_bp"])
-        if (
-            candidate_verdict != claim.verdict
-            and candidate_confidence_bp >= 7500
-        ):
-            claim.verdict = candidate_verdict
-            claim.confidence_bp = candidate_confidence_bp
+            try:
+                val_data = fetch_and_rejudge()
+            except Exception:
+                return False
+
+            if not isinstance(val_data, dict):
+                return False
+            if set(val_data.keys()) != expected_keys:
+                return False
+
+            if leader_data["verdict"] != val_data["verdict"]:
+                return False
+            if leader_data["should_overturn"] != val_data["should_overturn"]:
+                return False
+            if abs(int(leader_data["confidence_bp"]) - int(val_data["confidence_bp"])) > 1500:
+                return False
+            return True
+
+        res = gl.vm.run_nondet_unsafe(fetch_and_rejudge, validator_fn)
+
+        if res["should_overturn"]:
+            claim.verdict = str(res["verdict"])
+            claim.confidence_bp = u64(res["confidence_bp"])
             claim.reasoning = str(res["reasoning"])
         else:
             claim.reasoning = (
@@ -899,10 +952,8 @@ class MerchantBond(gl.Contract):
 
     @gl.public.write
     def upgrade(self, new_code: bytes) -> None:
+        # VERIFY-AT-STUDIO: locked code-slot mutation in upgrade must be rehearsed on Studionet. Current Direct Mode does not prove Root locked-slot authorization.
         root = gl.storage.Root.get()
         code = root.code.get()
-        if hasattr(code, "truncate"):
-            code.truncate()
-        elif hasattr(code, "clear"):
-            code.clear()
+        code.truncate()
         code.extend(new_code)
