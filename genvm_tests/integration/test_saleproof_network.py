@@ -31,6 +31,40 @@ def _required_address(name: str) -> str:
     return value
 
 
+def _canonical_address(value) -> str:
+    if isinstance(value, bool):
+        pytest.fail("Address readback has an unsupported representation.")
+    if isinstance(value, int):
+        if value < 0 or value >= 1 << 160:
+            pytest.fail("Address readback integer is outside the 160-bit range.")
+        return f"0x{value:040x}"
+    if isinstance(value, (bytes, bytearray)):
+        raw = bytes(value)
+        if len(raw) != 20:
+            pytest.fail("Address readback bytes must contain exactly 20 bytes.")
+        return f"0x{raw.hex()}"
+
+    as_bytes = getattr(value, "as_bytes", None)
+    if as_bytes is not None:
+        try:
+            raw = bytes(as_bytes() if callable(as_bytes) else as_bytes)
+        except (TypeError, ValueError):
+            pytest.fail("Address readback as_bytes did not contain bytes.")
+        if len(raw) != 20:
+            pytest.fail("Address readback as_bytes must contain exactly 20 bytes.")
+        return f"0x{raw.hex()}"
+
+    text = str(value)
+    payload = text[2:] if text.startswith(("0x", "0X")) else text
+    if len(payload) != 40:
+        pytest.fail("Address readback text must contain exactly 40 hex digits.")
+    try:
+        int(payload, 16)
+    except ValueError:
+        pytest.fail("Address readback text is not hexadecimal.")
+    return f"0x{payload.lower()}"
+
+
 def _required_positive_int(name: str) -> int:
     value = os.environ.get(name, "")
     try:
@@ -92,6 +126,28 @@ def _finalized_leader_succeeded(transaction: dict) -> bool:
     return execution_result == "SUCCESS"
 
 
+def _transaction_hash(transaction: dict) -> str:
+    for key in ("tx_id", "hash", "txId"):
+        value = transaction.get(key)
+        if isinstance(value, bool) or value is None:
+            continue
+        if isinstance(value, (bytes, bytearray)):
+            raw = bytes(value)
+            if len(raw) == 32:
+                return f"0x{raw.hex()}"
+            continue
+        text = str(value)
+        payload = text[2:] if text.startswith(("0x", "0X")) else text
+        if len(payload) != 64:
+            continue
+        try:
+            int(payload, 16)
+        except ValueError:
+            continue
+        return f"0x{payload.lower()}"
+    pytest.fail("Finalized transaction evidence has no 32-byte transaction hash.")
+
+
 def _sha256(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
@@ -107,7 +163,7 @@ def _marker_source(source: str, marker: str) -> str:
     return source.replace(anchor, marker_view + anchor)
 
 
-def _ledger_rehearsal_state(contract, product_id: int) -> dict:
+def _ledger_rehearsal_state(contract, product_id: int, merchant_address: str) -> dict:
     product_count = contract.get_product_count().call(
         transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
     )
@@ -118,14 +174,17 @@ def _ledger_rehearsal_state(contract, product_id: int) -> dict:
     )
     if len(observations) < 1:
         pytest.fail("The rehearsal product must have at least one observation.")
+    product = contract.get_product(args=[product_id]).call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
+    if _canonical_address(product["merchant"]) != merchant_address.lower():
+        pytest.fail("The rehearsal product does not belong to the seeded merchant.")
     return {
         "config": contract.get_config().call(
             transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
         ),
         "product_count": product_count,
-        "product": contract.get_product(args=[product_id]).call(
-            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
-        ),
+        "product": product,
         "observations": observations,
     }
 
@@ -153,15 +212,15 @@ def _bond_rehearsal_state(
     claim = contract.get_claim(args=[claim_id]).call(
         transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
     )
-    if str(merchant["addr"]).lower() != merchant_address.lower():
+    if _canonical_address(merchant["addr"]) != merchant_address.lower():
         pytest.fail("The rehearsal merchant record does not match its address.")
-    if str(sale["merchant"]).lower() != merchant_address.lower():
+    if _canonical_address(sale["merchant"]) != merchant_address.lower():
         pytest.fail("The rehearsal sale does not belong to the seeded merchant.")
     if int(sale["product_id"]) != product_id:
         pytest.fail("The rehearsal sale does not reference the seeded ledger product.")
     if int(sale["claim_id"]) != claim_id or int(claim["sale_id"]) != sale_id:
         pytest.fail("The rehearsal sale and claim do not reference each other.")
-    buyer_address = str(claim["buyer"])
+    buyer_address = _canonical_address(claim["buyer"])
     return {
         "config": contract.get_config().call(
             transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
@@ -212,9 +271,9 @@ def test_corrected_studionet_source_and_config():
     bond_config = bond.get_config().call(
         transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
     )
-    assert str(ledger_config["owner"]).lower() == owner_address.lower()
-    assert str(bond_config["owner"]).lower() == owner_address.lower()
-    assert str(bond_config["ledger"]).lower() == ledger_address.lower()
+    assert _canonical_address(ledger_config["owner"]) == owner_address.lower()
+    assert _canonical_address(bond_config["owner"]) == owner_address.lower()
+    assert _canonical_address(bond_config["ledger"]) == ledger_address.lower()
     assert (
         ledger.is_upgrader(args=[upgrader_address]).call(
             transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
@@ -260,12 +319,20 @@ def _rehearse_upgrade(
         args=[rehearsal_source.encode("utf-8")]
     ).transact(wait_transaction_status=TransactionStatus.FINALIZED)
     assert not _finalized_leader_succeeded(denied)
+    print(
+        f"ROOT REHEARSAL {marker} unauthorized "
+        f"tx={_transaction_hash(denied)} status=FINALIZED leader=NON_SUCCESS"
+    )
     assert _deployed_source(client, address) == before_code
 
     rehearsed = contract.upgrade(args=[rehearsal_source.encode("utf-8")]).transact(
         wait_transaction_status=TransactionStatus.FINALIZED
     )
     assert _finalized_leader_succeeded(rehearsed)
+    print(
+        f"ROOT REHEARSAL {marker} marker "
+        f"tx={_transaction_hash(rehearsed)} status=FINALIZED leader=SUCCESS"
+    )
     assert _deployed_source(client, address) == rehearsal_source
 
     rehearsal_factory = ContractFactory(
@@ -285,6 +352,10 @@ def _rehearse_upgrade(
         args=[original_source.encode("utf-8")]
     ).transact(wait_transaction_status=TransactionStatus.FINALIZED)
     assert _finalized_leader_succeeded(restored)
+    print(
+        f"ROOT REHEARSAL {marker} restore "
+        f"tx={_transaction_hash(restored)} status=FINALIZED leader=SUCCESS"
+    )
     assert _deployed_source(client, address) == original_source
     restored_contract = factory.build_contract(address, account=authorized)
     assert state_reader(restored_contract) == before_state
@@ -338,7 +409,7 @@ def test_studionet_root_upgrade_rehearsal():
     bond_config = bond.get_config().call(
         transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
     )
-    if str(bond_config["ledger"]).lower() != ledger_address.lower():
+    if _canonical_address(bond_config["ledger"]) != ledger_address.lower():
         pytest.fail(
             "The rehearsal MerchantBond must reference the rehearsal PriceLedger."
         )
@@ -374,7 +445,7 @@ def test_studionet_root_upgrade_rehearsal():
         authorized=authorized,
         unauthorized=unauthorized,
         state_reader=lambda contract: _ledger_rehearsal_state(
-            contract, rehearsal_product_id
+            contract, rehearsal_product_id, rehearsal_merchant_address
         ),
         marker="saleproof-ledger-root-rehearsal-v1",
     )

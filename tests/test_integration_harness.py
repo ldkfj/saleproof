@@ -46,6 +46,47 @@ def test_studionet_code_read_keeps_legacy_address_shape():
     assert network._deployed_source(FakeClient(), address) == source
 
 
+def test_live_address_readbacks_are_canonicalized():
+    address = "0x0123456789abcdef0123456789abcdef01234567"
+    raw = bytes.fromhex(address[2:])
+
+    class AddressLike:
+        as_bytes = raw
+
+    class MethodAddressLike:
+        def as_bytes(self):
+            return raw
+
+    assert network._canonical_address(int(address, 16)) == address
+    assert network._canonical_address(raw) == address
+    assert network._canonical_address(address.upper()) == address
+    assert network._canonical_address(AddressLike()) == address
+    assert network._canonical_address(MethodAddressLike()) == address
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        1 << 160,
+        b"\x00" * 19,
+        "0x1234",
+        "0xgggggggggggggggggggggggggggggggggggggggg",
+    ],
+)
+def test_invalid_live_address_readbacks_fail_closed(value):
+    with pytest.raises(pytest.fail.Exception):
+        network._canonical_address(value)
+
+
+def test_rehearsal_transaction_hash_is_validated_and_normalized():
+    expected = "0x" + "ab" * 32
+    assert network._transaction_hash({"tx_id": expected.upper()}) == expected
+    assert network._transaction_hash({"hash": bytes.fromhex("ab" * 32)}) == expected
+    with pytest.raises(pytest.fail.Exception, match="no 32-byte transaction hash"):
+        network._transaction_hash({"tx_id": "0x1234"})
+
+
 def test_rehearsal_receipt_check_requires_finalized_actual_leader():
     def transaction(status, receipts):
         return {
