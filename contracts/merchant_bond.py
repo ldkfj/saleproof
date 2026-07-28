@@ -118,14 +118,6 @@ def validate_verdict(raw: str) -> tuple[str, int, str]:
 
 def _now() -> int:
     """Unix seconds pinned to the GenVM transaction datetime."""
-    if hasattr(gl, "message_raw") and isinstance(gl.message_raw, dict) and "datetime" in gl.message_raw:
-        dt_val = gl.message_raw["datetime"]
-        if isinstance(dt_val, str) and dt_val:
-            try:
-                s = dt_val.replace("Z", "+00:00")
-                return int(datetime.fromisoformat(s).timestamp())
-            except Exception:
-                pass
     return int(datetime.now(timezone.utc).timestamp())
 
 
@@ -184,6 +176,12 @@ def _filter_eligible_observations(
             "ok": True,
         })
     return eligible
+
+
+def _appeal_should_overturn(
+    verdict: str, confidence_bp: int, standing_verdict: str
+) -> bool:
+    return verdict != standing_verdict and confidence_bp >= 7500
 
 
 @allow_storage
@@ -713,9 +711,8 @@ class MerchantBond(gl.Contract):
                 )
             )
             verdict, confidence_bp, reasoning = validate_verdict(raw)
-            should_overturn = (
-                verdict != standing_verdict
-                and confidence_bp >= 7500
+            should_overturn = _appeal_should_overturn(
+                verdict, confidence_bp, standing_verdict
             )
             return {
                 "verdict": verdict,
@@ -728,12 +725,38 @@ class MerchantBond(gl.Contract):
             if not isinstance(leader_res, gl.vm.Return):
                 return False
             leader_data = getattr(
-            leader_res, "calldata", getattr(leader_res, "value", None)
-        )
+                leader_res, "calldata", getattr(leader_res, "value", None)
+            )
             if not isinstance(leader_data, dict):
                 return False
-            expected_keys = {"verdict", "confidence_bp", "reasoning", "should_overturn"}
+            expected_keys = {
+                "verdict",
+                "confidence_bp",
+                "reasoning",
+                "should_overturn",
+            }
             if set(leader_data.keys()) != expected_keys:
+                return False
+            if type(leader_data["should_overturn"]) is not bool:
+                return False
+
+            try:
+                leader_verdict, leader_confidence_bp, _ = validate_verdict(
+                    json.dumps(
+                        {
+                            "verdict": leader_data["verdict"],
+                            "confidence_bp": leader_data["confidence_bp"],
+                            "reasoning": leader_data["reasoning"],
+                        }
+                    )
+                )
+            except Exception:
+                return False
+
+            expected_leader_outcome = _appeal_should_overturn(
+                leader_verdict, leader_confidence_bp, standing_verdict
+            )
+            if leader_data["should_overturn"] != expected_leader_outcome:
                 return False
 
             try:
@@ -745,12 +768,23 @@ class MerchantBond(gl.Contract):
                 return False
             if set(val_data.keys()) != expected_keys:
                 return False
+            if type(val_data["should_overturn"]) is not bool:
+                return False
+            if val_data["should_overturn"] != _appeal_should_overturn(
+                str(val_data["verdict"]),
+                int(val_data["confidence_bp"]),
+                standing_verdict,
+            ):
+                return False
 
-            if leader_data["verdict"] != val_data["verdict"]:
+            if leader_verdict != val_data["verdict"]:
                 return False
             if leader_data["should_overturn"] != val_data["should_overturn"]:
                 return False
-            if abs(int(leader_data["confidence_bp"]) - int(val_data["confidence_bp"])) > 1500:
+            if (
+                abs(leader_confidence_bp - int(val_data["confidence_bp"]))
+                > 1500
+            ):
                 return False
             return True
 

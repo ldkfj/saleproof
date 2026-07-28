@@ -70,23 +70,11 @@ def validate_extraction(raw: str) -> tuple[bool, int, str, str]:
 
 def _now() -> int:
     """Unix seconds pinned to the GenVM transaction datetime."""
-    if hasattr(gl, "message_raw") and isinstance(gl.message_raw, dict) and "datetime" in gl.message_raw:
-        dt_val = gl.message_raw["datetime"]
-        if isinstance(dt_val, str) and dt_val:
-            try:
-                s = dt_val.replace("Z", "+00:00")
-                return int(datetime.fromisoformat(s).timestamp())
-            except Exception:
-                pass
     return int(datetime.now(timezone.utc).timestamp())
 
 
 def _id_key(value: u64) -> u256:
     return u256(value)
-
-
-def _url_key(url: str) -> u256:
-    return u256(int(hashlib.sha256(url.encode("utf-8")).hexdigest()[:15], 16))
 
 
 def _to_address(v) -> Address:
