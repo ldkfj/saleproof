@@ -22,9 +22,11 @@ export const ConfigError: React.FC = () => {
             margin: "16px 0",
           }}
         >
-          VITE_LEDGER_ADDRESS=0x26aA8E0af993665e02A14408f75221e1951926C1
+          VITE_GL_NETWORK=studionet
           <br />
-          VITE_BOND_ADDRESS=0xDa121e6fF503eC2F13101df37Cf05aD38E93544F
+          VITE_LEDGER_ADDRESS=&lt;corrected deployment address&gt;
+          <br />
+          VITE_BOND_ADDRESS=&lt;corrected deployment address&gt;
         </div>
       </div>
     </div>

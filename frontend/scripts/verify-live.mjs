@@ -1,10 +1,22 @@
 import { createClient, chains } from "genlayer-js";
 
-const LEDGER_ADDRESS =
-  process.env.VITE_LEDGER_ADDRESS ?? "0x26aA8E0af993665e02A14408f75221e1951926C1";
-const BOND_ADDRESS =
-  process.env.VITE_BOND_ADDRESS ?? "0xDa121e6fF503eC2F13101df37Cf05aD38E93544F";
+const NETWORK = process.env.VITE_GL_NETWORK ?? "studionet";
+const LEDGER_ADDRESS = process.env.VITE_LEDGER_ADDRESS;
+const BOND_ADDRESS = process.env.VITE_BOND_ADDRESS;
 
+if (NETWORK !== "studionet") {
+  throw new Error("verify-live.mjs verifies the reviewed Studionet release only.");
+}
+
+function requireAddress(name, value) {
+  if (!/^0x[0-9a-fA-F]{40}$/.test(value ?? "")) {
+    throw new Error(`${name} must be set to a real corrected Studionet address.`);
+  }
+  return value;
+}
+
+const ledgerAddress = requireAddress("VITE_LEDGER_ADDRESS", LEDGER_ADDRESS);
+const bondAddress = requireAddress("VITE_BOND_ADDRESS", BOND_ADDRESS);
 const client = createClient({ chain: chains.studionet });
 
 function asBigInt(value) {
@@ -49,16 +61,27 @@ function expect(label, actual, expected) {
 }
 
 const readLedger = (functionName, args) =>
-  client.readContract({ address: LEDGER_ADDRESS, functionName, args });
+  client.readContract({ address: ledgerAddress, functionName, args });
 const readBond = (functionName, args) =>
-  client.readContract({ address: BOND_ADDRESS, functionName, args });
+  client.readContract({ address: bondAddress, functionName, args });
 
-const [product, observations, sale, claim] = await Promise.all([
-  readLedger("get_product", [1]),
-  readLedger("get_observations", [1]),
-  readBond("get_sale", [1]),
-  readBond("get_claim", [1]),
-]);
+const [ledgerConfig, bondConfig, product, observations, sale, claim] =
+  await Promise.all([
+    readLedger("get_config", []),
+    readBond("get_config", []),
+    readLedger("get_product", [1]),
+    readLedger("get_observations", [1]),
+    readBond("get_sale", [1]),
+    readBond("get_claim", [1]),
+  ]);
+
+expect(
+  "Bond ledger link",
+  String(bondConfig.ledger).toLowerCase(),
+  ledgerAddress.toLowerCase(),
+);
+const registrar = await readLedger("is_registrar", [bondAddress]);
+expect("Bond registrar authorization", Boolean(registrar), true);
 
 const merchant = await readBond("get_merchant", [sale.merchant]);
 const latestObservation = observations.at(-1);
@@ -68,7 +91,10 @@ if (!latestObservation) {
 }
 
 const productUrl = String(product.url);
-const latestPrice = centsToPrice(latestObservation.price_cents, String(latestObservation.currency));
+const latestPrice = centsToPrice(
+  latestObservation.price_cents,
+  String(latestObservation.currency),
+);
 const merchantName = String(merchant.name);
 const merchantBond = weiToGen(merchant.bond_wei);
 const merchantStrikes = Number(merchant.strikes);
@@ -82,7 +108,7 @@ const slash = settledSlash(claimVerdict, asBigInt(merchant.bond_wei));
 const buyerTotal = claimDeposit + slash;
 
 if (!productUrl.includes("books.toscrape.com/catalogue/a-light-in-the-attic")) {
-  throw new Error(`Product 1 URL did not match the deployed demo product: ${productUrl}`);
+  throw new Error(`Product 1 URL did not match the verified demo product: ${productUrl}`);
 }
 expect("Latest price", latestPrice, "£51.77");
 expect("Merchant name", merchantName, "Demo Shop");
@@ -97,7 +123,10 @@ expect("Claim deposit", weiToGen(claimDeposit), "0.1 GEN");
 expect("Settlement slash", weiToGen(slash), "0.1 GEN");
 expect("Buyer total", weiToGen(buyerTotal), "0.2 GEN");
 
-console.log("SaleProof live-chain UI verification");
+console.log("SaleProof corrected Studionet UI verification");
+console.log(`Ledger: ${ledgerAddress}`);
+console.log(`MerchantBond: ${bondAddress}`);
+console.log(`Snapshot cooldown: ${Number(ledgerConfig.snapshot_cooldown_s)} s`);
 console.log(`Product 1 URL: ${productUrl}`);
 console.log(`Latest price: ${latestPrice}`);
 console.log(`Merchant name: ${merchantName}`);
@@ -109,5 +138,7 @@ console.log(`Claim 1 state: ${claimState}`);
 console.log(`Claim 1 verdict: ${claimVerdict}`);
 console.log(`Claim 1 confidence: ${claimConfidence} bp`);
 console.log(`Claim 1 deposit: ${weiToGen(claimDeposit)}`);
-console.log(`Settlement: deposit ${weiToGen(claimDeposit)} + slash ${weiToGen(slash)} = ${weiToGen(buyerTotal)} buyer total`);
+console.log(
+  `Settlement: deposit ${weiToGen(claimDeposit)} + slash ${weiToGen(slash)} = ${weiToGen(buyerTotal)} buyer total`,
+);
 console.log("Verification: PASS");
