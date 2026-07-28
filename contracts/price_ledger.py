@@ -1,8 +1,8 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 from genlayer import *
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
-import time
 
 
 # keep in sync with merchant_bond.py
@@ -20,54 +20,58 @@ def _strip_fences(raw: str) -> str:
 def validate_extraction(raw: str) -> tuple[bool, int, str, str]:
     """Parse and strictly validate the LLM price-extraction output.
 
-    Returns (found, price_cents, currency, note). Raises ValueError('ERR_EXTRACT_INVALID: <reason>') on ANY violation.
+    Returns (found, price_cents, currency, note). Raises gl.vm.UserError('ERR_EXTRACT_INVALID: <reason>') on ANY violation.
     """
     if not isinstance(raw, str) or len(raw.encode("utf-8")) > 1024:
-        raise ValueError("ERR_EXTRACT_INVALID: payload exceeds 1024 bytes")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: payload exceeds 1024 bytes")
 
     try:
         data = json.loads(_strip_fences(raw))
-    except Exception as e:
-        raise ValueError(f"ERR_EXTRACT_INVALID: JSON parse error: {e}")
+    except json.JSONDecodeError as e:
+        raise gl.vm.UserError(f"ERR_EXTRACT_INVALID: JSON parse error: {e}")
 
     if not isinstance(data, dict):
-        raise ValueError("ERR_EXTRACT_INVALID: expected JSON object")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: expected JSON object")
 
     expected_keys = {"found", "price_cents", "currency", "note"}
     if set(data.keys()) != expected_keys:
-        raise ValueError(f"ERR_EXTRACT_INVALID: keys must be exactly {expected_keys}")
+        raise gl.vm.UserError(f"ERR_EXTRACT_INVALID: keys must be exactly {expected_keys}")
 
     found = data["found"]
     if type(found) is not bool:
-        raise ValueError("ERR_EXTRACT_INVALID: found must be a bool")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: found must be a bool")
 
     price_cents = data["price_cents"]
     if type(price_cents) is not int:
-        raise ValueError("ERR_EXTRACT_INVALID: price_cents must be an int")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: price_cents must be an int")
 
     if price_cents < 0 or price_cents > 1_000_000_000:
-        raise ValueError("ERR_EXTRACT_INVALID: price_cents out of range")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: price_cents out of range")
 
     if found and price_cents < 1:
-        raise ValueError("ERR_EXTRACT_INVALID: price_cents must be >= 1 when found is true")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: price_cents must be >= 1 when found is true")
 
     if not found and price_cents != 0:
-        raise ValueError("ERR_EXTRACT_INVALID: price_cents must be 0 when found is false")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: price_cents must be 0 when found is false")
 
     currency = data["currency"]
     if type(currency) is not str or currency not in {"USD", "EUR", "GBP", "JPY", "VND"}:
-        raise ValueError("ERR_EXTRACT_INVALID: invalid currency")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: invalid currency")
 
     note = data["note"]
     if type(note) is not str or len(note) > 200:
-        raise ValueError("ERR_EXTRACT_INVALID: note must be str <= 200 chars")
+        raise gl.vm.UserError("ERR_EXTRACT_INVALID: note must be str <= 200 chars")
 
     return (found, price_cents, currency, note)
 
 
 def _now() -> int:
-    """Unix seconds; validator-synchronized by the GenVM runtime."""
-    return int(time.time())
+    """Unix seconds pinned to the GenVM transaction datetime."""
+    return int(datetime.now(timezone.utc).timestamp())
+
+
+def _id_key(value: u64) -> u256:
+    return u256(value)
 
 
 def _to_address(v) -> Address:
@@ -85,8 +89,7 @@ def _to_address(v) -> Address:
             return Address(v)
     except Exception:
         pass
-    raise Exception("ERR_BAD_ADDRESS")
-
+    raise gl.vm.UserError("ERR_BAD_ADDRESS")
 
 
 @allow_storage
@@ -117,87 +120,105 @@ EXTRACTION_PROMPT_TEMPLATE = (
 
 class PriceLedger(gl.Contract):
     owner: Address
-    products: TreeMap[u64, Product]
+    products: TreeMap[u256, Product]
     product_count: u64
-    observations: TreeMap[u64, DynArray[Observation]]
+    observations: TreeMap[u256, DynArray[Observation]]
     registrars: TreeMap[Address, bool]
     snapshot_cooldown_s: u64
     max_observations: u64
 
     def __init__(
-        self, snapshot_cooldown_s: u64 = 300, max_observations: u64 = 500
+        self,
+        upgrader_address: Address,
+        snapshot_cooldown_s: u64 = 300,
+        max_observations: u64 = 500,
     ):
+        upgrader = _to_address(upgrader_address)
+        if upgrader == Address("0x0000000000000000000000000000000000000000"):
+            raise gl.vm.UserError("ERR_BAD_UPGRADER")
+        root = gl.storage.Root.get()
+        root.upgraders.get().append(upgrader)
+
         self.owner = _to_address(gl.message.sender_address)
         self.snapshot_cooldown_s = snapshot_cooldown_s
         self.max_observations = max_observations
         self.product_count = 0
 
+    @gl.public.view
+    def is_upgrader(self, addr: Address) -> bool:
+        candidate = _to_address(addr)
+        for registered in gl.storage.Root.get().upgraders.get():
+            if registered == candidate:
+                return True
+        return False
+
     @gl.public.write
     def add_registrar(self, addr: Address):
         addr = _to_address(addr)
         if _to_address(gl.message.sender_address) != self.owner:
-            raise Exception("ERR_NOT_OWNER")
+            raise gl.vm.UserError("ERR_NOT_OWNER")
         if self.registrars.get(addr, False):
-            raise Exception("ERR_ALREADY_REGISTRAR")
+            raise gl.vm.UserError("ERR_ALREADY_REGISTRAR")
         self.registrars[addr] = True
 
     @gl.public.write
     def remove_registrar(self, addr: Address):
         addr = _to_address(addr)
         if _to_address(gl.message.sender_address) != self.owner:
-            raise Exception("ERR_NOT_OWNER")
+            raise gl.vm.UserError("ERR_NOT_OWNER")
         if not self.registrars.get(addr, False):
-            raise Exception("ERR_NOT_REGISTRAR")
+            raise gl.vm.UserError("ERR_NOT_REGISTRAR")
         self.registrars[addr] = False
 
     @gl.public.write
     def register_product(self, url: str, merchant: Address) -> u64:
         merchant = _to_address(merchant)
         if not self.registrars.get(_to_address(gl.message.sender_address), False):
-            raise Exception("ERR_NOT_REGISTRAR")
+            raise gl.vm.UserError("ERR_NOT_REGISTRAR")
         if not url or not url.strip():
-            raise Exception("ERR_URL_EMPTY")
+            raise gl.vm.UserError("ERR_URL_EMPTY")
         if not (url.startswith("http://") or url.startswith("https://")):
-            raise Exception("ERR_URL_SCHEME")
+            raise gl.vm.UserError("ERR_URL_SCHEME")
         if len(url) > 500:
-            raise Exception("ERR_URL_TOO_LONG")
+            raise gl.vm.UserError("ERR_URL_TOO_LONG")
 
         for p_id in range(1, self.product_count + 1):
-            if p_id in self.products:
-                p = self.products[p_id]
+            key = _id_key(p_id)
+            if key in self.products:
+                p = self.products[key]
                 if p.active and p.url == url:
-                    raise Exception("ERR_URL_DUPLICATE")
+                    raise gl.vm.UserError("ERR_URL_DUPLICATE")
 
         self.product_count += 1
         product_id = self.product_count
         now = _now()
-        self.products[product_id] = Product(
+        self.products[_id_key(product_id)] = Product(
             id=product_id,
             url=url,
             merchant=merchant,
             registered_at=now,
             active=True,
         )
-        # Observation storage is allocated lazily via get_or_insert_default —
-        # storage collections cannot be constructed by user code in GenVM.
         return product_id
 
     @gl.public.write
     def deactivate_product(self, product_id: u64):
         if not self.registrars.get(_to_address(gl.message.sender_address), False):
-            raise Exception("ERR_NOT_REGISTRAR")
-        if product_id not in self.products or product_id == 0 or product_id > self.product_count:
-            raise Exception("ERR_NO_PRODUCT")
-        p = self.products[product_id]
+            raise gl.vm.UserError("ERR_NOT_REGISTRAR")
+        key = _id_key(product_id)
+        if key not in self.products or product_id == 0 or product_id > self.product_count:
+            raise gl.vm.UserError("ERR_NO_PRODUCT")
+        p = self.products[key]
         if not p.active:
-            raise Exception("ERR_INACTIVE")
+            raise gl.vm.UserError("ERR_INACTIVE")
         p.active = False
 
     @gl.public.view
     def get_product(self, product_id: u64) -> dict:
-        if product_id not in self.products or product_id == 0 or product_id > self.product_count:
-            raise Exception("ERR_NO_PRODUCT")
-        p = self.products[product_id]
+        key = _id_key(product_id)
+        if key not in self.products or product_id == 0 or product_id > self.product_count:
+            raise gl.vm.UserError("ERR_NO_PRODUCT")
+        p = self.products[key]
         return {
             "id": p.id,
             "url": p.url,
@@ -208,9 +229,10 @@ class PriceLedger(gl.Contract):
 
     @gl.public.view
     def get_observations(self, product_id: u64) -> list[dict]:
-        if product_id not in self.products or product_id == 0 or product_id > self.product_count:
-            raise Exception("ERR_NO_PRODUCT")
-        obs_list = self.observations.get(product_id, [])
+        key = _id_key(product_id)
+        if key not in self.products or product_id == 0 or product_id > self.product_count:
+            raise gl.vm.UserError("ERR_NO_PRODUCT")
+        obs_list = self.observations.get(key, [])
         return [
             {
                 "price_cents": o.price_cents,
@@ -250,20 +272,21 @@ class PriceLedger(gl.Contract):
 
     @gl.public.write
     def snapshot(self, product_id: u64) -> None:
-        if product_id not in self.products or product_id == 0 or product_id > self.product_count:
-            raise Exception("ERR_NO_PRODUCT")
+        key = _id_key(product_id)
+        if key not in self.products or product_id == 0 or product_id > self.product_count:
+            raise gl.vm.UserError("ERR_NO_PRODUCT")
 
-        p = self.products[product_id]
+        p = self.products[key]
         if not p.active:
-            raise Exception("ERR_INACTIVE")
+            raise gl.vm.UserError("ERR_INACTIVE")
 
-        obs_list = self.observations.get(product_id, [])
+        obs_list = self.observations.get(key, [])
         if len(obs_list) >= self.max_observations:
-            raise Exception("ERR_OBS_CAP")
+            raise gl.vm.UserError("ERR_OBS_CAP")
 
         now = _now()
         if len(obs_list) > 0 and (now - obs_list[-1].observed_at) < self.snapshot_cooldown_s:
-            raise Exception("ERR_COOLDOWN")
+            raise gl.vm.UserError("ERR_COOLDOWN")
 
         url = p.url
 
@@ -292,4 +315,14 @@ class PriceLedger(gl.Contract):
             ok=bool(res["found"]),
             note=str(res["note"]),
         )
-        self.observations.get_or_insert_default(product_id).append(obs)
+        self.observations.get_or_insert_default(key).append(obs)
+
+    @gl.public.write
+    def upgrade(self, new_code: bytes) -> None:
+        root = gl.storage.Root.get()
+        code = root.code.get()
+        if hasattr(code, "truncate"):
+            code.truncate()
+        elif hasattr(code, "clear"):
+            code.clear()
+        code.extend(new_code)

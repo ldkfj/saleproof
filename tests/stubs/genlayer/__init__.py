@@ -53,9 +53,6 @@ class TreeMap(dict):
     """Dict-backed TreeMap stub for GenLayer testing."""
 
     def get_or_insert_default(self, key):
-        # Stub simplification: the only TreeMap value type allocated lazily in
-        # this project is DynArray. Real GenVM default-constructs the declared
-        # value type in storage.
         if key not in self:
             self[key] = DynArray()
         return self[key]
@@ -137,6 +134,65 @@ class EqPrinciple:
         return fn()
 
 
+class UserError(Exception):
+    """GenVM user exception type."""
+
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
+class VM:
+    def __init__(self):
+        self.UserError = UserError
+
+
+class StorageSlot:
+    def __init__(self, initial=None):
+        self._value = initial if initial is not None else DynArray()
+
+    def get(self):
+        return self._value
+
+    def append(self, val):
+        self._value.append(val)
+
+    def truncate(self):
+        self._value.clear()
+
+    def extend(self, new_val):
+        if isinstance(new_val, (bytes, bytearray, list)):
+            self._value.extend(new_val)
+        else:
+            self._value.append(new_val)
+
+
+class Root:
+    _instance = None
+
+    def __init__(self):
+        self.upgraders = StorageSlot(DynArray())
+        self.code = StorageSlot(bytearray())
+
+    @classmethod
+    def get(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    @classmethod
+    def reset(cls):
+        cls._instance = cls()
+
+
+class Storage:
+    def __init__(self):
+        self.Root = Root
+
+
 class GL:
     def __init__(self):
         self.message = Message()
@@ -145,6 +201,8 @@ class GL:
         self.evm = Evm()
         self.nondet = Nondet(self)
         self.eq_principle = EqPrinciple(self)
+        self.vm = VM()
+        self.storage = Storage()
 
         # Settable fakes & recorded call history for tests
         self._fake_contract = None
