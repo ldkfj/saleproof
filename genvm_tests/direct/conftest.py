@@ -2,11 +2,15 @@ import pytest
 import datetime
 from pathlib import Path
 import sys
+import os
 
-# Ensure root and contracts are importable
+# Ensure root, contracts, and stubs are importable
 root_dir = str(Path(__file__).parent.parent.parent)
+stubs_dir = str(Path(__file__).parent.parent.parent / "tests" / "stubs")
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
+if stubs_dir not in sys.path:
+    sys.path.insert(0, stubs_dir)
 
 
 class DirectVMSimulator:
