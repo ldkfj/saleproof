@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Both corrected contracts are deployed; registrar wiring and release journeys remain pending.**
+**Both corrected contracts are deployed and wired; release journeys and final evidence remain pending.**
 
 The active manifest must remain incomplete until every required transaction is
 FINALIZED and its `mode="leader"` receipt has execution result `SUCCESS`, every
@@ -50,7 +50,7 @@ invalidates those approvals.
 | Verified active Root upgrader address | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
 | Explicit confirmation for PriceLedger deployment | YES — user replied “Xác nhận” after the exact wallet, network, constructor values, and source hash were presented |
 | Explicit confirmation for MerchantBond deployment | YES — user replied “Xác nhận” after the exact wallet, ledger address, constructor values, and source hash were presented |
-| Explicit confirmation for registrar write | PENDING |
+| Explicit confirmation for registrar write | YES — user replied “Xác nhận” after the exact Ledger, Bond, active wallet, and current `false` readback were presented |
 
 Account or wallet history does not satisfy this table. Codex must ask which
 wallet to use, verify the active address and target, then obtain explicit
@@ -106,8 +106,8 @@ record before this section is complete.
 | Check | Transaction / readback | Status |
 |---|---|---|
 | MerchantBond config points to the recorded PriceLedger | `LATEST_FINAL get_config.ledger == 0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0` | PASS |
-| `PriceLedger.add_registrar(MerchantBond)` | PENDING | PENDING |
-| `PriceLedger.is_registrar(MerchantBond) == true` | PENDING | PENDING |
+| `PriceLedger.add_registrar(MerchantBond)` | `0xb01f8b1ddc27adb33374d16c5ec11e50c8f8ade3e730febaa496c9ed9d2f7166` | `FINALIZED`; actual leader `SUCCESS` |
+| `PriceLedger.is_registrar(MerchantBond) == true` | independent `LATEST_FINAL` read after the recorded write | PASS |
 | PriceLedger owner readback | `LATEST_FINAL get_config.owner == 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PASS |
 | MerchantBond owner readback | `LATEST_FINAL get_config.owner == 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PASS |
 | Root upgrader membership on both contracts | Both `is_upgrader(0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc) == true` | PASS |

@@ -372,3 +372,23 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
   reconfiguration, GitHub push, Vercel deployment, or submission mutation
   occurred. Registrar authorization remains behind a separate explicit user
   confirmation.
+
+## 2026-07-28 — Corrected release registrar wiring — LIVE PASS
+
+- The user separately confirmed the exact write
+  `PriceLedger.add_registrar(0x18e8029FC7e8d217167100C2b9E6983722124E18)`
+  from active owner
+  `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` against PriceLedger
+  `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0`.
+- Immediately before submission at clean HEAD
+  `27b253ecf6e9253436bbd2301c54d35c0e12cdd2`, source hashes, both
+  owners, the MerchantBond-to-ledger link, chain ID `61999`, and the
+  `LATEST_FINAL is_registrar == false` precondition were reverified.
+- Registrar transaction
+  `0xb01f8b1ddc27adb33374d16c5ec11e50c8f8ade3e730febaa496c9ed9d2f7166`
+  reached `FINALIZED` with actual leader execution `SUCCESS`.
+  Checkpoint evidence records the transition `false -> true`; an independent
+  `LATEST_FINAL` read also returned `true`, while MerchantBond still linked
+  to the recorded PriceLedger.
+- No release journey, frontend reconfiguration, GitHub push, Vercel deployment,
+  or submission mutation occurred.
