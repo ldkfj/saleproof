@@ -1,74 +1,135 @@
 # SaleProof
 
-**Contracts:** [`PriceLedger`](contracts/price_ledger.py) · [`MerchantBond`](contracts/merchant_bond.py) (Round A review pending dual sign-off authorization)
+SaleProof is a two-contract GenLayer demonstration for testing whether an
+advertised discount is supported by a product's prior price history.
 
-SaleProof proves whether a merchant's advertised discount is real. Merchants stake a GEN bond behind their sales. Anyone can snapshot a product page's price into an append-only on-chain history. When a buyer challenges a sale as fake, GenLayer validators independently read the live product page, weigh it against the accumulated price history, and reach consensus on a graduated verdict that pays out from the merchant's bond.
+Merchants stake a native-GEN bond, independent callers record product-page
+prices in an on-chain evidence log, and a buyer may challenge a sale. GenLayer
+validators read the live page and judge it against the frozen evidence. The
+contract then applies a closed verdict set and deterministic pull-payment rules.
 
-**Why this cannot exist without GenLayer:** the verdict needs (a) trustless reads of a live web page at many points in time and (b) a subjective judgment — *"is this discount materially honest given the observed price history?"* — that neither the merchant, the marketplace, nor the buyer can be trusted to make alone. Remove the on-chain web reading or the consensus AI judgment and there is no product left.
+## Release status
 
-## The trust problem
+The current source has passed its local correction gates, but live release
+review remains pending. It is **not yet the source of the previous public
+Studionet deployment**. Those earlier addresses, screenshots, and journeys are
+historical evidence only and are explicitly superseded.
 
-"Fake sales" — inflating a reference price right before a promotion — are illegal in many jurisdictions (the EU Omnibus Directive requires advertised discounts to be measured against the lowest price of the prior 30 days) but almost never enforced. Buyers lose real money; honest merchants lose the trust premium; marketplaces profit from sale events and are conflicted. No single party should decide.
+A current release requires all of the following to refer to one exact revision:
 
-## Architecture — two cooperating contracts
+- corrected PriceLedger and MerchantBond deployments on Studionet;
+- FINALIZED + `SUCCESS` deployment/setup receipts;
+- deployed-source SHA-256 parity with the reviewed commit;
+- a disposable Root-upgrade authorization/state-preservation rehearsal;
+- multi-wallet primary and appeal journeys;
+- frontend environment and render evidence using the same contract pair;
+- approval from Codex and the anonymous co-review AI.
 
+Until those gates are complete, no contract address or live site is presented
+here as current release evidence.
+
+## Why GenLayer
+
+No participant is a neutral source of truth: a merchant can inflate a reference
+price, a buyer can make a self-serving complaint, and a marketplace can benefit
+from promotion volume. A centralized scraper or AI operator could also change
+the evidence or verdict.
+
+SaleProof makes the contract authoritative. Validator-replicated web access
+collects and rechecks real-world evidence; subjective consensus classifies the
+sale; deterministic guards constrain evidence, state transitions, and money
+movement. The caller cannot submit the verdict or payout tier.
+
+Studionet GEN is test value. SaleProof does not claim production settlement or
+legal-compliance certification.
+
+## Contracts
+
+### PriceLedger
+
+[`contracts/price_ledger.py`](contracts/price_ledger.py) stores registered
+products and bounded, append-only observation arrays. `snapshot(product_id)` is
+permissionless after product, cap, and cooldown guards. It renders the product
+page, extracts strict JSON, reaches comparative consensus, and only then appends
+an observation. Dead-page evidence may be recorded as `ok=false`.
+
+### MerchantBond
+
+[`contracts/merchant_bond.py`](contracts/merchant_bond.py) owns merchant bonds,
+sales, claims, appeals, deterministic settlement, and withdrawable balances.
+Each sale has one canonical claim:
+
+```text
+OPEN -> JUDGED -> APPEALED -> FINAL -> SETTLED
+          |
+          +-- finalize after the appeal window --> FINAL
 ```
-┌──────────────────┐  register_product (async emit)  ┌──────────────────┐
-│  MerchantBond    │ ───────────────────────────────►│   PriceLedger    │
-│  bonds, sales,   │                                 │  append-only     │
-│  claims, appeals,│ ◄─────────────────────────────  │  price-observation│
-│  settlements     │  get_product / get_observations │  log, queryable  │
-└──────────────────┘         (sync views)            │  by any contract │
-                                                     └──────────────────┘
+
+Verdicts are `GENUINE`, `INFLATED_REFERENCE`, `DECEPTIVE`, and
+`INSUFFICIENT_EVIDENCE`. Appeal consensus recomputes the 7,500-bp overturn
+boundary for both leader and validator outputs, so confidence tolerance cannot
+cross into a different economic outcome.
+
+Both contracts are Root-slot upgradable. Code replacement uses the current
+`truncate()`/`extend()` API and does not automatically migrate storage.
+
+The complete, current behavior is specified in
+[`docs/SPEC.md`](docs/SPEC.md). Operational recovery is documented in
+[`docs/RECOVERY.md`](docs/RECOVERY.md).
+
+## Repository
+
+```text
+contracts/            Intelligent contracts
+tests/                Pure unit tests and the local GenLayer stub
+genvm_tests/direct/   Official genlayer-test Direct Mode checks
+genvm_tests/integration/
+                      Opt-in Studionet parity and Root rehearsal
+frontend/             React, Vite, TypeScript, genlayer-js
+scripts/              Live schema probe
+deployments/          Release manifest and evidence checklist
+docs/                 Specification, engineering log, recovery, evidence
 ```
 
-- **[`contracts/price_ledger.py`](contracts/price_ledger.py)** — an event-sourced evidence log. Anyone may call `snapshot(product_id)`: validators render the product page (`gl.nondet.web.render`), an LLM extracts the price into strict JSON, a deterministic firewall (`validate_extraction`) rejects anything malformed, and consensus is reached through the comparative equivalence principle. Dead pages are recorded as `ok=false` evidence. Deterministic guards (cooldown, caps, URL rules) run before any nondeterministic call.
-- **[`contracts/merchant_bond.py`](contracts/merchant_bond.py)** — holds the money and runs an explicit claim state machine `OPEN → JUDGED → (APPEALED →) FINAL → SETTLED` with a single transition table. `judge_claim` serializes the on-chain price history, has validators read the live page, and judges against the 30-day-low standard with a **graduated verdict**: `GENUINE`, `INFLATED_REFERENCE` (5% bond slash), `DECEPTIVE` (10% slash), or `INSUFFICIENT_EVIDENCE`. Appeals re-judge under a skeptical persona and only overturn deterministically at ≥75% confidence. Settlements are pull-payments (`withdraw()`), never pushed.
+## Local verification
 
-Security posture: every LLM output passes a pure, deterministic validator (exact key set, closed verdict set, numeric ranges, length caps — prompt-injected instructions in page content cannot widen the decision space); every address input is normalized (`Address`/hex/bytes/int); all money is integer wei, all ratios basis points — no floats anywhere.
+Install the pinned development dependencies, then run:
 
-## The full journey (all real, on-chain today)
-
-1. Merchant registers with a staked bond and lists a product URL.
-2. Watchers snapshot the price over time — the chain accumulates evidence.
-3. Merchant announces a sale with a claimed reference price and discount.
-4. A buyer who smells a fake sale files a claim with a small deposit.
-5. Anyone triggers `judge_claim`: validators fetch the live page, compare with history, and deliver a verdict with written reasoning stored on-chain.
-6. The losing side may appeal within the window (appeal bond at stake); a skeptical re-judge decides; settlement pays buyers from the bond, strikes the merchant (3 strikes = permanent ban), and `withdraw()` releases funds.
-
-Claim #1 on the live contracts shows a complete real case: history of £51.77 vs a claimed £65.00 reference — verdict `INFLATED_REFERENCE` at 100% confidence, with the validators' reasoning readable on-chain and in the app.
-
-## Repository layout
-
-```
-contracts/        price_ledger.py, merchant_bond.py   (GenLayer Intelligent Contracts, Python)
-frontend/         React + Vite + TypeScript dApp using genlayer-js (read + write, wallet + dev burner)
-tests/            66 unit tests: guards, payout math, state machine, adversarial LLM-output suites
-frontend/scripts/ verify-live.mjs, render-check.mjs, write-check.mjs  (chain-truth + headless UI evidence)
-docs/             SPEC.md (design), BUILD-LOG.md (full engineering journal), screenshots/, SUBMISSION.md
+```powershell
+python -m pip install -r requirements-dev.txt
+genvm-lint check contracts/price_ledger.py --json
+genvm-lint check contracts/merchant_bond.py --json
+genvm-lint typecheck contracts/price_ledger.py
+genvm-lint typecheck contracts/merchant_bond.py
+python -m pytest tests -v
+python -m pytest genvm_tests/direct -v
+python scripts/schema_probe.py --rpc https://studio.genlayer.com/api
 ```
 
-## Run it yourself
+Frontend checks:
 
-```bash
-# contract unit tests (pure Python, stubbed runtime)
-python -m pytest -v
-
-# frontend against the live Studionet contracts
+```powershell
 cd frontend
-cp .env.example .env
-npm install && npm run dev
-# verify every value the UI shows against the chain:
-node scripts/verify-live.mjs
+npm install
+npx tsc --noEmit
+npm run build
+npx vitest run
 ```
 
-The app ships a **dev burner wallet** (Studionet only) with a one-click faucet, so you can register a merchant, snapshot prices, announce sales, file claims, trigger judgments, appeal, settle, and withdraw — end to end — without installing anything.
+`frontend/.env.example` intentionally contains blank contract addresses. Fill
+them only from a completed corrected deployment recorded in
+[`deployments/README.md`](deployments/README.md). The application otherwise
+shows a configuration error instead of silently using stale or placeholder
+contracts.
 
-## Roadmap
+The integration and live-render scripts are opt-in. A skipped integration test
+or an old screenshot is not live release evidence.
 
-- **Testnet Bradbury migration** — in progress: the PriceLedger deploy transaction has already finalized on Bradbury; the app is network-switchable via a single `VITE_GL_NETWORK` env var and the production site will be repointed once the full contract pair is live there.
-- **Watcher incentives** — a small bounty per accepted snapshot, funded from the protocol pool (which already accumulates forfeited deposits and appeal bonds), so price histories grow without altruism.
-- **Merchant reputation as a public good** — PriceLedger is already queryable by any contract; expose bond size, strike history, and verdict record so marketplaces, lenders, or aggregators can price merchant trust on-chain.
-- **Sale watchlists & alerts** — follow a product and get notified when a sale is announced against its history, turning passive evidence into active consumer protection.
-- **Multi-currency normalization** — cross-currency price histories judged coherently (today mixed-currency history is conservatively treated as weak evidence).
-- **Scale hardening** — indexed coverage-reservation accounting (the current per-merchant scan is O(n), fine at demo scale) and pagination for large observation logs.
+## Current limitations
+
+- Studionet may reset and has no production-value guarantee.
+- Observation reads and coverage scans are demo-scale and unpaginated.
+- Five currencies are parsed, but there is no FX conversion.
+- Direct Mode cannot prove native Root locked-slot authorization; the disposable
+  Studionet rehearsal remains mandatory.
+- Current deployment, journey, and frontend evidence are pending.
