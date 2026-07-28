@@ -347,3 +347,28 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
   frontend reconfiguration, GitHub push, Vercel deployment, or submission
   mutation occurred. Each remains behind its applicable identity,
   verification, and explicit-confirmation gate.
+
+## 2026-07-28 — Corrected release MerchantBond deployment — LIVE PASS; REGISTRAR PENDING
+
+- The user separately selected and explicitly confirmed
+  `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` as MerchantBond
+  deployment owner and Root upgrader, with corrected PriceLedger
+  `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0` and the manifest
+  constructor values.
+- Immediately before submission, Codex verified a clean tree at
+  `aa9162d594f83d1a838631dc21ef4fc595603643`, Studionet chain ID
+  `61999`, the active configured wallet, MerchantBond source SHA-256
+  `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb`,
+  and the PriceLedger source/config/Root-upgrader readbacks.
+- MerchantBond deployment transaction
+  `0xe3cb5c67f52df04b173c160767228735a8d9a50f62b96baf82c3d05ea0dd77c9`
+  reached `FINALIZED` with actual leader execution `SUCCESS`, creating
+  `0x18e8029FC7e8d217167100C2b9E6983722124E18`.
+- An independent finalized read verified exact deployed-source parity, owner
+  and Root upgrader, ledger link, `2 GEN` minimum bond, `0.1 GEN` claim
+  deposit, `0.5 GEN` appeal bond, `300` second appeal window, strike limit
+  `3`, and initial pool `0`.
+- No `PriceLedger.add_registrar` write, release journey, frontend
+  reconfiguration, GitHub push, Vercel deployment, or submission mutation
+  occurred. Registrar authorization remains behind a separate explicit user
+  confirmation.

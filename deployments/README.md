@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Corrected PriceLedger deployed; MerchantBond and pair wiring remain pending.**
+**Both corrected contracts are deployed; registrar wiring and release journeys remain pending.**
 
 The active manifest must remain incomplete until every required transaction is
 FINALIZED and its `mode="leader"` receipt has execution result `SUCCESS`, every
@@ -26,7 +26,7 @@ success cannot substitute for a failed or missing leader result.
 |---|---|
 | Source freeze commit | `ad056635af3411e2e3aab5fb7f22ecf37e72a530` |
 | Completed evidence-package commit | PENDING; recorded after live evidence is committed |
-| Clean tree verified | YES immediately before PriceLedger deployment at `c89da7d8eff9c562f05a4ad9721bc6ae51f2c333` |
+| Clean tree verified | YES before PriceLedger at `c89da7d8eff9c562f05a4ad9721bc6ae51f2c333` and before MerchantBond at `aa9162d594f83d1a838631dc21ef4fc595603643` |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
 | MerchantBond SHA-256 | `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb` |
 | Runner | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
@@ -49,7 +49,7 @@ invalidates those approvals.
 | User-selected Root upgrader wallet | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
 | Verified active Root upgrader address | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
 | Explicit confirmation for PriceLedger deployment | YES — user replied “Xác nhận” after the exact wallet, network, constructor values, and source hash were presented |
-| Explicit confirmation for MerchantBond deployment | PENDING |
+| Explicit confirmation for MerchantBond deployment | YES — user replied “Xác nhận” after the exact wallet, ledger address, constructor values, and source hash were presented |
 | Explicit confirmation for registrar write | PENDING |
 
 Account or wallet history does not satisfy this table. Codex must ask which
@@ -60,17 +60,17 @@ confirmation before each release network write.
 
 | Field | PriceLedger | MerchantBond |
 |---|---|---|
-| Address | `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0` | PENDING |
-| Deployment transaction | `0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc` | PENDING |
-| Sender / owner | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PENDING |
-| Registered Root upgrader | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PENDING |
-| Final transaction status | `FINALIZED` | PENDING |
-| Execution result | actual leader `SUCCESS` | PENDING |
-| Explorer link | https://explorer-studio.genlayer.com/transactions/0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc | PENDING |
-| `gen_getContractCode` SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` | PENDING |
-| Local/deployed source parity | PASS — exact UTF-8 bytes | PENDING |
-| Coupled FINALIZED leader-success receipt / no intervening upgrade | PASS — code/config read immediately after the recorded deployment receipt | PENDING |
-| Config readback | owner `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`; cooldown `60`; cap `500`; `is_upgrader == true` | PENDING |
+| Address | `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0` | `0x18e8029FC7e8d217167100C2b9E6983722124E18` |
+| Deployment transaction | `0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc` | `0xe3cb5c67f52df04b173c160767228735a8d9a50f62b96baf82c3d05ea0dd77c9` |
+| Sender / owner | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
+| Registered Root upgrader | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
+| Final transaction status | `FINALIZED` | `FINALIZED` |
+| Execution result | actual leader `SUCCESS` | actual leader `SUCCESS` |
+| Explorer link | https://explorer-studio.genlayer.com/transactions/0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc | https://explorer-studio.genlayer.com/transactions/0xe3cb5c67f52df04b173c160767228735a8d9a50f62b96baf82c3d05ea0dd77c9 |
+| `gen_getContractCode` SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` | `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb` |
+| Local/deployed source parity | PASS — exact UTF-8 bytes | PASS — exact UTF-8 bytes |
+| Coupled FINALIZED leader-success receipt / no intervening upgrade | PASS — code/config read immediately after the recorded deployment receipt | PASS — code/config read immediately after the recorded deployment receipt |
+| Config readback | owner `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`; cooldown `60`; cap `500`; `is_upgrader == true` | ledger `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0`; owner/upgrader `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`; values `2 GEN / 0.1 GEN / 0.5 GEN / 300 s / 3`; pool `0` |
 
 ### Constructor arguments
 
@@ -88,8 +88,8 @@ max_observations: 500
 MerchantBond:
 
 ```text
-upgrader_address: PENDING USER-SELECTION / VERIFIED ADDRESS
-ledger: PENDING ACTUAL PRICELEDGER ADDRESS FROM THIS MANIFEST
+upgrader_address: 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc
+ledger: 0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0
 min_bond_wei: 2000000000000000000
 claim_deposit_wei: 100000000000000000
 appeal_bond_wei: 500000000000000000
@@ -105,12 +105,12 @@ record before this section is complete.
 
 | Check | Transaction / readback | Status |
 |---|---|---|
-| MerchantBond config points to the recorded PriceLedger | PENDING | PENDING |
+| MerchantBond config points to the recorded PriceLedger | `LATEST_FINAL get_config.ledger == 0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0` | PASS |
 | `PriceLedger.add_registrar(MerchantBond)` | PENDING | PENDING |
 | `PriceLedger.is_registrar(MerchantBond) == true` | PENDING | PENDING |
 | PriceLedger owner readback | `LATEST_FINAL get_config.owner == 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PASS |
-| MerchantBond owner readback | PENDING | PENDING |
-| Root upgrader membership on both contracts | PriceLedger `is_upgrader(0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc) == true`; MerchantBond pending | PARTIAL |
+| MerchantBond owner readback | `LATEST_FINAL get_config.owner == 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PASS |
+| Root upgrader membership on both contracts | Both `is_upgrader(0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc) == true` | PASS |
 
 On current Studionet, `gen_getContractCode` must use the legacy `[address]`
 request shape. Its parity result is accepted only when coupled to the recorded
