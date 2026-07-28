@@ -22,6 +22,9 @@ def validate_extraction(raw: str) -> tuple[bool, int, str, str]:
 
     Returns (found, price_cents, currency, note). Raises gl.vm.UserError('ERR_EXTRACT_INVALID: <reason>') on ANY violation.
     """
+    if isinstance(raw, dict):
+        raw = json.dumps(raw)
+
     if not isinstance(raw, str) or len(raw.encode("utf-8")) > 1024:
         raise gl.vm.UserError("ERR_EXTRACT_INVALID: payload exceeds 1024 bytes")
 
@@ -67,11 +70,23 @@ def validate_extraction(raw: str) -> tuple[bool, int, str, str]:
 
 def _now() -> int:
     """Unix seconds pinned to the GenVM transaction datetime."""
+    if hasattr(gl, "message_raw") and isinstance(gl.message_raw, dict) and "datetime" in gl.message_raw:
+        dt_val = gl.message_raw["datetime"]
+        if isinstance(dt_val, str) and dt_val:
+            try:
+                s = dt_val.replace("Z", "+00:00")
+                return int(datetime.fromisoformat(s).timestamp())
+            except Exception:
+                pass
     return int(datetime.now(timezone.utc).timestamp())
 
 
 def _id_key(value: u64) -> u256:
     return u256(value)
+
+
+def _url_key(url: str) -> u256:
+    return u256(int(hashlib.sha256(url.encode("utf-8")).hexdigest()[:15], 16))
 
 
 def _to_address(v) -> Address:
@@ -136,6 +151,7 @@ class PriceLedger(gl.Contract):
         upgrader = _to_address(upgrader_address)
         if upgrader == Address("0x0000000000000000000000000000000000000000"):
             raise gl.vm.UserError("ERR_BAD_UPGRADER")
+        # VERIFY-AT-STUDIO: Root upgrader registration must be rehearsed on Studionet. Current Direct Mode does not prove Root locked-slot authorization.
         root = gl.storage.Root.get()
         root.upgraders.get().append(upgrader)
 
@@ -146,6 +162,7 @@ class PriceLedger(gl.Contract):
 
     @gl.public.view
     def is_upgrader(self, addr: Address) -> bool:
+        # VERIFY-AT-STUDIO: Root VLA iteration in is_upgrader must be rehearsed on Studionet. Current Direct Mode does not prove Root locked-slot authorization.
         candidate = _to_address(addr)
         for registered in gl.storage.Root.get().upgraders.get():
             if registered == candidate:
@@ -319,10 +336,8 @@ class PriceLedger(gl.Contract):
 
     @gl.public.write
     def upgrade(self, new_code: bytes) -> None:
+        # VERIFY-AT-STUDIO: locked code-slot mutation in upgrade must be rehearsed on Studionet. Current Direct Mode does not prove Root locked-slot authorization.
         root = gl.storage.Root.get()
         code = root.code.get()
-        if hasattr(code, "truncate"):
-            code.truncate()
-        elif hasattr(code, "clear"):
-            code.clear()
+        code.truncate()
         code.extend(new_code)
