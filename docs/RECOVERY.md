@@ -97,16 +97,27 @@ Set only local process environment values:
 
 ```powershell
 $env:SALEPROOF_RUN_STUDIONET_UPGRADE_REHEARSAL='1'
+$env:SALEPROOF_STUDIONET_LEDGER_ADDRESS='<release ledger; exclusion guard>'
+$env:SALEPROOF_STUDIONET_BOND_ADDRESS='<release bond; exclusion guard>'
 $env:SALEPROOF_STUDIONET_REHEARSAL_LEDGER_ADDRESS='<disposable ledger>'
 $env:SALEPROOF_STUDIONET_REHEARSAL_BOND_ADDRESS='<disposable bond>'
+$env:SALEPROOF_STUDIONET_REHEARSAL_PRODUCT_ID='<seeded product with observation>'
+$env:SALEPROOF_STUDIONET_REHEARSAL_MERCHANT_ADDRESS='<seeded merchant>'
+$env:SALEPROOF_STUDIONET_REHEARSAL_SALE_ID='<seeded sale>'
+$env:SALEPROOF_STUDIONET_REHEARSAL_CLAIM_ID='<seeded claim>'
 gltest genvm_tests/integration/test_saleproof_network.py -k root_upgrade_rehearsal -v --network studionet --rpc-url https://studio.genlayer.com/api
 ```
 
 The configured `gltest` default account must be the registered upgrader and a
-second configured account must be unauthorized. The gated test performs this
-sequence for both contracts:
+second configured account must be unauthorized. All four release/rehearsal
+addresses are mandatory, nonzero, and pairwise distinct. The rehearsal bond
+must reference the rehearsal ledger. Before running, seed the disposable pair
+with a linked product observation, merchant, sale, and claim (the sale must
+reference that product and merchant, and the claim must reference that sale).
+The gated test performs this sequence for both contracts:
 
-1. snapshot config and counts;
+1. snapshot config, counts, product/observations, merchant, sale, claim, and
+   relevant withdrawable records;
 2. attempt marker-code replacement with the unauthorized wallet;
 3. require a finalized failed execution and byte-identical deployed code;
 4. replace code with the authorized wallet;

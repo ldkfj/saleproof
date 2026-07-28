@@ -23,10 +23,23 @@ def _required_address(name: str) -> str:
     if len(value) != 42 or not value.startswith("0x"):
         pytest.fail(f"{name} must contain a real 20-byte contract address.")
     try:
-        int(value[2:], 16)
+        numeric = int(value[2:], 16)
     except ValueError:
         pytest.fail(f"{name} must contain a hexadecimal contract address.")
+    if numeric == 0:
+        pytest.fail(f"{name} must not be the zero address.")
     return value
+
+
+def _required_positive_int(name: str) -> int:
+    value = os.environ.get(name, "")
+    try:
+        parsed = int(value)
+    except ValueError:
+        pytest.fail(f"{name} must contain a positive integer.")
+    if parsed < 1:
+        pytest.fail(f"{name} must contain a positive integer.")
+    return parsed
 
 
 def _assert_studionet(client) -> None:
@@ -54,6 +67,60 @@ def _marker_source(source: str, marker: str) -> str:
         f'        return "{marker}"\n\n'
     )
     return source.replace(anchor, marker_view + anchor)
+
+
+def _ledger_rehearsal_state(contract, product_id: int) -> dict:
+    product_count = contract.get_product_count().call()
+    if int(product_count) < product_id:
+        pytest.fail("The rehearsal product ID is outside the populated ledger.")
+    observations = contract.get_observations(args=[product_id]).call()
+    if len(observations) < 1:
+        pytest.fail("The rehearsal product must have at least one observation.")
+    return {
+        "config": contract.get_config().call(),
+        "product_count": product_count,
+        "product": contract.get_product(args=[product_id]).call(),
+        "observations": observations,
+    }
+
+
+def _bond_rehearsal_state(
+    contract,
+    merchant_address: str,
+    product_id: int,
+    sale_id: int,
+    claim_id: int,
+) -> dict:
+    counts = contract.get_counts().call()
+    if int(counts["sale_count"]) < sale_id:
+        pytest.fail("The rehearsal sale ID is outside the populated bond contract.")
+    if int(counts["claim_count"]) < claim_id:
+        pytest.fail("The rehearsal claim ID is outside the populated bond contract.")
+    merchant = contract.get_merchant(args=[merchant_address]).call()
+    sale = contract.get_sale(args=[sale_id]).call()
+    claim = contract.get_claim(args=[claim_id]).call()
+    if str(merchant["addr"]).lower() != merchant_address.lower():
+        pytest.fail("The rehearsal merchant record does not match its address.")
+    if str(sale["merchant"]).lower() != merchant_address.lower():
+        pytest.fail("The rehearsal sale does not belong to the seeded merchant.")
+    if int(sale["product_id"]) != product_id:
+        pytest.fail("The rehearsal sale does not reference the seeded ledger product.")
+    if int(sale["claim_id"]) != claim_id or int(claim["sale_id"]) != sale_id:
+        pytest.fail("The rehearsal sale and claim do not reference each other.")
+    buyer_address = str(claim["buyer"])
+    return {
+        "config": contract.get_config().call(),
+        "counts": counts,
+        "merchant": merchant,
+        "sale": sale,
+        "claim": claim,
+        "merchant_withdrawable": contract.get_withdrawable(
+            args=[merchant_address]
+        ).call(),
+        "buyer_withdrawable": contract.get_withdrawable(
+            args=[buyer_address]
+        ).call(),
+    }
 
 
 @pytest.mark.integration
@@ -160,12 +227,30 @@ def test_studionet_root_upgrade_rehearsal():
         "SALEPROOF_STUDIONET_REHEARSAL_LEDGER_ADDRESS"
     )
     bond_address = _required_address("SALEPROOF_STUDIONET_REHEARSAL_BOND_ADDRESS")
-    release_addresses = {
-        os.environ.get("SALEPROOF_STUDIONET_LEDGER_ADDRESS", "").lower(),
-        os.environ.get("SALEPROOF_STUDIONET_BOND_ADDRESS", "").lower(),
+    release_ledger_address = _required_address(
+        "SALEPROOF_STUDIONET_LEDGER_ADDRESS"
+    )
+    release_bond_address = _required_address("SALEPROOF_STUDIONET_BOND_ADDRESS")
+    all_targets = {
+        ledger_address.lower(),
+        bond_address.lower(),
+        release_ledger_address.lower(),
+        release_bond_address.lower(),
     }
-    assert ledger_address.lower() not in release_addresses
-    assert bond_address.lower() not in release_addresses
+    if len(all_targets) != 4:
+        pytest.fail("Release and rehearsal contract addresses must all be distinct.")
+    rehearsal_product_id = _required_positive_int(
+        "SALEPROOF_STUDIONET_REHEARSAL_PRODUCT_ID"
+    )
+    rehearsal_merchant_address = _required_address(
+        "SALEPROOF_STUDIONET_REHEARSAL_MERCHANT_ADDRESS"
+    )
+    rehearsal_sale_id = _required_positive_int(
+        "SALEPROOF_STUDIONET_REHEARSAL_SALE_ID"
+    )
+    rehearsal_claim_id = _required_positive_int(
+        "SALEPROOF_STUDIONET_REHEARSAL_CLAIM_ID"
+    )
 
     client = get_gl_client()
     _assert_studionet(client)
@@ -185,6 +270,9 @@ def test_studionet_root_upgrade_rehearsal():
     bond_factory = get_contract_factory(contract_file_path=BOND_SOURCE)
     ledger = ledger_factory.build_contract(ledger_address)
     bond = bond_factory.build_contract(bond_address)
+    bond_config = bond.get_config().call()
+    if str(bond_config["ledger"]).lower() != ledger_address.lower():
+        pytest.fail("The rehearsal MerchantBond must reference the rehearsal PriceLedger.")
     assert ledger.is_upgrader(args=[authorized.address]).call() is True
     assert bond.is_upgrader(args=[authorized.address]).call() is True
     assert ledger.is_upgrader(args=[unauthorized.address]).call() is False
@@ -196,9 +284,8 @@ def test_studionet_root_upgrade_rehearsal():
         address=ledger_address,
         authorized=authorized,
         unauthorized=unauthorized,
-        state_reader=lambda contract: (
-            contract.get_config().call(),
-            contract.get_product_count().call(),
+        state_reader=lambda contract: _ledger_rehearsal_state(
+            contract, rehearsal_product_id
         ),
         marker="saleproof-ledger-root-rehearsal-v1",
     )
@@ -208,9 +295,12 @@ def test_studionet_root_upgrade_rehearsal():
         address=bond_address,
         authorized=authorized,
         unauthorized=unauthorized,
-        state_reader=lambda contract: (
-            contract.get_config().call(),
-            contract.get_counts().call(),
+        state_reader=lambda contract: _bond_rehearsal_state(
+            contract,
+            rehearsal_merchant_address,
+            rehearsal_product_id,
+            rehearsal_sale_id,
+            rehearsal_claim_id,
         ),
         marker="saleproof-bond-root-rehearsal-v1",
     )

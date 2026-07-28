@@ -98,6 +98,7 @@ pair:
 | Evidence | PriceLedger rehearsal | MerchantBond rehearsal |
 |---|---|---|
 | Disposable address | PENDING | PENDING |
+| Linked seeded record IDs | product + observation: PENDING | merchant + sale + claim: PENDING |
 | Unauthorized upgrade tx | PENDING | PENDING |
 | Unauthorized result is finalized failure | PENDING | PENDING |
 | Code unchanged after denial | PENDING | PENDING |
