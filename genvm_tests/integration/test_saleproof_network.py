@@ -42,6 +42,18 @@ def _required_positive_int(name: str) -> int:
     return parsed
 
 
+def _required_private_key(name: str) -> str:
+    value = os.environ.get(name, "")
+    payload = value[2:] if value.startswith("0x") else value
+    if len(payload) != 64:
+        pytest.fail(f"{name} must contain one 32-byte private key.")
+    try:
+        int(payload, 16)
+    except ValueError:
+        pytest.fail(f"{name} must contain a hexadecimal private key.")
+    return value
+
+
 def _assert_studionet(client) -> None:
     assert client.chain.id == STUDIONET_CHAIN_ID
     assert client.provider.url == STUDIONET_RPC
@@ -216,12 +228,7 @@ def test_studionet_root_upgrade_rehearsal():
     """Explicitly destructive rehearsal on dedicated, disposable contracts only."""
     _enabled("SALEPROOF_RUN_STUDIONET_UPGRADE_REHEARSAL")
 
-    from gltest import (
-        get_accounts,
-        get_contract_factory,
-        get_default_account,
-        get_gl_client,
-    )
+    from gltest import create_account, get_contract_factory, get_gl_client
 
     ledger_address = _required_address(
         "SALEPROOF_STUDIONET_REHEARSAL_LEDGER_ADDRESS"
@@ -251,20 +258,17 @@ def test_studionet_root_upgrade_rehearsal():
     rehearsal_claim_id = _required_positive_int(
         "SALEPROOF_STUDIONET_REHEARSAL_CLAIM_ID"
     )
+    authorized = create_account(
+        _required_private_key("SALEPROOF_STUDIONET_UPGRADER_PRIVATE_KEY")
+    )
+    unauthorized = create_account(
+        _required_private_key("SALEPROOF_STUDIONET_UNAUTHORIZED_PRIVATE_KEY")
+    )
+    if unauthorized.address.lower() == authorized.address.lower():
+        pytest.fail("Authorized and unauthorized rehearsal wallets must differ.")
 
     client = get_gl_client()
     _assert_studionet(client)
-    authorized = get_default_account()
-    unauthorized = next(
-        (
-            account
-            for account in get_accounts()
-            if account.address.lower() != authorized.address.lower()
-        ),
-        None,
-    )
-    if unauthorized is None:
-        pytest.fail("The rehearsal requires a second configured Studionet account.")
 
     ledger_factory = get_contract_factory(contract_file_path=LEDGER_SOURCE)
     bond_factory = get_contract_factory(contract_file_path=BOND_SOURCE)

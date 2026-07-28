@@ -27,7 +27,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   ERR_COOLDOWN: "The snapshot cooldown has not elapsed.",
   ERR_DEPOSIT: "The transaction must send the exact configured claim deposit.",
   ERR_DISCOUNT: "Discount must be between 1% and 95%.",
-  ERR_DUPLICATE_CLAIM: "This wallet has already filed a claim for this sale.",
+  ERR_SALE_ALREADY_CLAIMED: "This sale already has its canonical claim.",
   ERR_DURATION: "Sale duration must be between 10 minutes and 30 days.",
   ERR_EXTRACT_INVALID: "Validators could not produce a valid price extraction.",
   ERR_INACTIVE: "This product is inactive.",

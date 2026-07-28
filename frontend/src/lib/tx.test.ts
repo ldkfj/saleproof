@@ -40,4 +40,23 @@ describe("transaction helpers", () => {
     expect(failure.code).toBe("ERR_COOLDOWN");
     expect(failure.message).toContain("cooldown");
   });
+
+  it("maps the canonical-claim guard returned by MerchantBond", () => {
+    const failure = transactionFailure({
+      consensus_data: {
+        final: true,
+        leader_receipt: [
+          {
+            execution_result: "ERROR",
+            result: {
+              status: "contract_error",
+              payload: "Exception: ERR_SALE_ALREADY_CLAIMED",
+            },
+          },
+        ] as never,
+      },
+    });
+    expect(failure.code).toBe("ERR_SALE_ALREADY_CLAIMED");
+    expect(failure.message).toContain("canonical claim");
+  });
 });

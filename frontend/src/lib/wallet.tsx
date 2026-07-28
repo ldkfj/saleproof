@@ -17,6 +17,7 @@ import {
 } from "./chain";
 
 const BURNER_KEY_STORAGE = "saleproof.studionet.burner-private-key";
+export const STUDIONET_FAUCET_AMOUNT_WEI = 1_000_000_000_000_000_000;
 
 export type ProviderKind = "injected" | "burner";
 export type WalletClient = ReturnType<typeof createClient>;
@@ -189,7 +190,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       await client.request({
         method: "sim_fundAccount",
-        params: [address, 1],
+        params: [address, STUDIONET_FAUCET_AMOUNT_WEI],
       });
       await refreshBalance();
     } catch (nextError) {
