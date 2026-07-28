@@ -19,6 +19,13 @@ import {
 const BURNER_KEY_STORAGE = "saleproof.studionet.burner-private-key";
 export const STUDIONET_FAUCET_AMOUNT_WEI = 1_000_000_000_000_000_000;
 
+export function studionetFaucetRequest(address: `0x${string}`) {
+  return {
+    method: "sim_fundAccount" as const,
+    params: [address, STUDIONET_FAUCET_AMOUNT_WEI] as [`0x${string}`, number],
+  };
+}
+
 export type ProviderKind = "injected" | "burner";
 export type WalletClient = ReturnType<typeof createClient>;
 
@@ -188,10 +195,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setFunding(true);
     setError(null);
     try {
-      await client.request({
-        method: "sim_fundAccount",
-        params: [address, STUDIONET_FAUCET_AMOUNT_WEI],
-      });
+      await client.request(studionetFaucetRequest(address));
       await refreshBalance();
     } catch (nextError) {
       setError(`${GL_NETWORK_LABEL} faucet failed: ${errorMessage(nextError)}`);
