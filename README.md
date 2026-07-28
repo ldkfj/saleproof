@@ -1,6 +1,6 @@
 # SaleProof
 
-**Live app:** https://saleproof.vercel.app · **Contracts (GenLayer Studionet):** [`PriceLedger`](https://explorer-studio.genlayer.com/address/0x26aA8E0af993665e02A14408f75221e1951926C1) `0x26aA8E0af993665e02A14408f75221e1951926C1` · [`MerchantBond`](https://explorer-studio.genlayer.com/address/0xDa121e6fF503eC2F13101df37Cf05aD38E93544F) `0xDa121e6fF503eC2F13101df37Cf05aD38E93544F`
+**Contracts:** [`PriceLedger`](contracts/price_ledger.py) · [`MerchantBond`](contracts/merchant_bond.py) (Round A review pending dual sign-off authorization)
 
 SaleProof proves whether a merchant's advertised discount is real. Merchants stake a GEN bond behind their sales. Anyone can snapshot a product page's price into an append-only on-chain history. When a buyer challenges a sale as fake, GenLayer validators independently read the live product page, weigh it against the accumulated price history, and reach consensus on a graduated verdict that pays out from the merchant's bond.
 

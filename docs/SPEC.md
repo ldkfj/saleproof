@@ -5,12 +5,12 @@ tags:
   - spec
   - genlayer
   - saleproof
-status: approved
+status: pending_dual_review
 ---
 
 # SaleProof — Specification v1.0
 
-> Status: APPROVED (Updated for Round A GenVM compatibility, evidence model, and Root upgradability).
+> Status: PENDING DUAL REVIEW (Updated for Round A GenVM compatibility, evidence model, and Root upgradability).
 > Author: Claude & Codex. Primary implementation worker: Antigravity.
 > Workspace: `E:\Genlayer-Projects\saleproof`. Governance: `E:\Genlayer` (read-only).
 
