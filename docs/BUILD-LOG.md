@@ -498,3 +498,11 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
   deployment, or submission mutation occurred during this correction. The
   superseded pair remains release-blocked; a fresh Studionet pair still
   requires independent co-approval and explicit user confirmation.
+- The release manifest was reset to an honest pre-deploy state: every fresh
+  wallet, address, transaction, wiring readback, journey row, frontend
+  environment, and public-release field is `PENDING`; the custody-incident pair
+  appears only under historical superseded evidence. Current official
+  Networks, Transaction Context, and Upgradability documentation was rechecked
+  on 2026-07-29. It still records Studionet RPC
+  `https://studio.genlayer.com/api`, chain ID `61999`, deterministic
+  transaction-pinned `time.time()`, and Root storage compatibility requirements.
