@@ -145,6 +145,10 @@ class UserError(Exception):
         return self.message
 
 
+class VMError(Exception):
+    """GenVM runtime exception type (for locked-slot violations, etc.)."""
+
+
 class Return:
     """GenVM Return type wrapper passed to validator closures."""
 
@@ -156,6 +160,7 @@ class VM:
     def __init__(self, gl_ref):
         self._gl = gl_ref
         self.UserError = UserError
+        self.VMError = VMError
         self.Return = Return
 
     def run_nondet_unsafe(self, leader_fn, validator_fn):
@@ -183,7 +188,7 @@ class StorageSlot:
             sender = gl.message.sender_address
             upgraders = Root.get().upgraders._value
             if sender not in upgraders:
-                raise UserError("ERR_NOT_UPGRADER")
+                raise VMError("unauthorized write to locked code slot")
         self._value.clear()
 
     def extend(self, new_val):
@@ -191,7 +196,7 @@ class StorageSlot:
             sender = gl.message.sender_address
             upgraders = Root.get().upgraders._value
             if sender not in upgraders:
-                raise UserError("ERR_NOT_UPGRADER")
+                raise VMError("unauthorized write to locked code slot")
         if isinstance(new_val, (bytes, bytearray, list)):
             self._value.extend(new_val)
         else:

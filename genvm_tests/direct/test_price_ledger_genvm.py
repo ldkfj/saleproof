@@ -1,99 +1,119 @@
-from pathlib import Path
+import sys
+
 import pytest
-from gltest.direct import VMContext, deploy_contract, create_address
+
+
+LEDGER_PATH = "contracts/price_ledger.py"
 
 
 @pytest.mark.direct
-def test_direct_official_sdk_loaded():
-    """BLOCKER 5: Verify that the official GenLayer SDK is loaded, not tests/stubs."""
-    import sys
-    genlayer_mod = sys.modules.get("genlayer")
-    if genlayer_mod and hasattr(genlayer_mod, "__file__") and genlayer_mod.__file__:
-        assert "tests/stubs" not in genlayer_mod.__file__.replace("\\", "/")
+def test_direct_price_ledger_uses_official_sdk_and_warped_time(
+    direct_vm,
+    direct_deploy,
+    direct_owner,
+    direct_alice,
+    direct_bob,
+    direct_charlie,
+):
+    """Deploy through official fixtures and round-trip Address/u256 calldata."""
+    direct_vm.warp("2026-07-28T00:00:00Z")
+    direct_vm.sender = direct_owner
+    ledger = direct_deploy(LEDGER_PATH, direct_charlie, 600, 1000)
+
+    genlayer_mod = sys.modules["genlayer"]
+    assert genlayer_mod.__file__ is not None
+    assert "tests/stubs" not in genlayer_mod.__file__.replace("\\", "/")
+    assert ledger.is_upgrader(direct_charlie) is True
+
+    ledger.add_registrar(direct_alice)
+    direct_vm.sender = direct_alice
+    product_id = ledger.register_product(
+        "https://shop.com/shoes", direct_bob
+    )
+
+    product = ledger.get_product(product_id)
+    assert product["merchant"].as_bytes == direct_bob
+    assert {k: v for k, v in product.items() if k != "merchant"} == {
+        "id": 1,
+        "url": "https://shop.com/shoes",
+        "registered_at": 1785196800,
+        "active": True,
+    }
 
 
 @pytest.mark.direct
-def test_direct_price_ledger_deploy_crud_and_warped_time():
-    """BLOCKER 5: Deploy PriceLedger, test u256/calldata CRUD and warped integer timestamp."""
-    vm = VMContext()
-    owner = create_address("owner")
-    alice = create_address("alice")
-    merchant = create_address("merchant")
-    upgrader = create_address("upgrader")
+def test_direct_price_ledger_user_error(
+    direct_vm, direct_deploy, direct_owner, direct_charlie
+):
+    direct_vm.sender = direct_owner
+    ledger = direct_deploy(LEDGER_PATH, direct_charlie)
 
-    vm.sender = owner
-    ledger = deploy_contract(Path("contracts/price_ledger.py"), vm, upgrader)
-
-    # Verify upgrader registered
-    assert ledger.is_upgrader(upgrader) is True
-
-    # Add registrar and register product
-    ledger.add_registrar(alice)
-    vm.sender = alice
-
-    # Warp time to ISO format (timestamp 1785196800)
-    vm.warp("2026-07-28T00:00:00Z")
-
-    p_id = ledger.register_product("https://shop.com/shoes", merchant)
-    assert p_id == 1
-
-    product = ledger.get_product(1)
-    assert product["id"] == 1
-    assert product["url"] == "https://shop.com/shoes"
-    assert product["merchant"] == merchant
-    assert product["registered_at"] == 1785196800
-    assert product["active"] is True
-
-
-@pytest.mark.direct
-def test_direct_price_ledger_user_errors():
-    """BLOCKER 5: Verify exact UserError forms returned from deployed contract."""
-    vm = VMContext()
-    owner = create_address("owner")
-    upgrader = create_address("upgrader")
-    vm.sender = owner
-
-    ledger = deploy_contract(Path("contracts/price_ledger.py"), vm, upgrader)
-
-    with pytest.raises(Exception) as exc_info:
+    with direct_vm.expect_revert("ERR_NO_PRODUCT"):
         ledger.get_product(999)
-    assert "ERR_NO_PRODUCT" in str(exc_info.value)
 
 
 @pytest.mark.direct
-def test_direct_price_ledger_snapshot_and_pickling():
-    """BLOCKER 5: Real PriceLedger snapshot with web/LLM mocks and pickling enabled."""
-    vm = VMContext()
-    vm.check_pickling = True
-    vm.strict_mocks = True
+def test_direct_price_ledger_snapshot_pickling_and_cooldown(
+    direct_vm,
+    direct_deploy,
+    direct_owner,
+    direct_alice,
+    direct_bob,
+    direct_charlie,
+):
+    direct_vm.check_pickling = True
+    direct_vm.strict_mocks = True
+    direct_vm.warp("2026-07-28T00:00:00Z")
+    direct_vm.sender = direct_owner
+    ledger = direct_deploy(LEDGER_PATH, direct_charlie, 60, 1000)
+    ledger.add_registrar(direct_alice)
 
-    owner = create_address("owner")
-    alice = create_address("alice")
-    merchant = create_address("merchant")
-    upgrader = create_address("upgrader")
-    watcher = create_address("watcher")
+    direct_vm.sender = direct_alice
+    product_id = ledger.register_product(
+        "https://shop.com/shoes", direct_bob
+    )
 
-    vm.sender = owner
-    ledger = deploy_contract(Path("contracts/price_ledger.py"), vm, upgrader)
-    ledger.add_registrar(alice)
-
-    vm.sender = alice
-    p_id = ledger.register_product("https://shop.com/shoes", merchant)
-
-    # Set up mocks for snapshot
-    url = "https://shop.com/shoes"
-    vm.mock_web(url, {"method": "GET", "status": 200, "body": "Shoes selling for $49.99 today!"})
-    vm.mock_llm(
-        r".*",
+    direct_vm.mock_web(
+        "https://shop.com/shoes",
+        {
+            "method": "GET",
+            "status": 200,
+            "body": "Shoes selling for $49.99 today!",
+        },
+    )
+    direct_vm.mock_llm(
+        r"^You are a price extractor\.",
         '{"found": true, "price_cents": 4999, "currency": "USD", "note": "Shoes"}',
     )
 
-    vm.sender = watcher
-    vm.warp("2026-07-28T00:03:20Z")
-    ledger.snapshot(p_id)
+    direct_vm.sender = direct_charlie
+    direct_vm.warp("2026-07-28T00:01:00Z")
+    ledger.snapshot(product_id)
 
-    obs = ledger.get_observations(p_id)
-    assert len(obs) == 1
-    assert obs[0]["price_cents"] == 4999
-    assert obs[0]["currency"] == "USD"
-    assert obs[0]["watcher"] == watcher
+    observations = ledger.get_observations(product_id)
+    assert len(observations) == 1
+    assert observations[0]["watcher"].as_bytes == direct_charlie
+    assert {
+        k: v for k, v in observations[0].items() if k != "watcher"
+    } == {
+        "price_cents": 4999,
+        "currency": "USD",
+        "observed_at": 1785196860,
+        "ok": True,
+        "note": "Shoes",
+    }
+
+    with direct_vm.expect_revert("ERR_COOLDOWN"):
+        ledger.snapshot(product_id)
+
+
+@pytest.mark.direct
+def test_direct_root_code_vla_truncate_extend_compatibility(
+    direct_vm, direct_deploy, direct_owner, direct_alice
+):
+    """Direct Mode checks the byte-VLA operation, not native Root authorization."""
+    direct_vm.sender = direct_owner
+    ledger = direct_deploy(LEDGER_PATH, direct_alice)
+
+    direct_vm.sender = direct_alice
+    ledger.upgrade(b"new_code_bytes")

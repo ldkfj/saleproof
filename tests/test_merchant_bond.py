@@ -577,15 +577,20 @@ def test_22_upgradability_constructor_and_upgrade(monkeypatch):
     contract, _, _ = make_bond(monkeypatch)
     assert contract.is_upgrader(UPGRADER) is True
     assert contract.is_upgrader(BOB) is False
+    register(contract)
+    merchant_before = contract.get_merchant(MERCHANT)
+    config_before = contract.get_config()
 
     gl.message.sender_address = Address(BOB)
-    with pytest.raises(gl.vm.UserError) as exc_unauth:
+    with pytest.raises(gl.vm.VMError):
         contract.upgrade(b"unauthorized_bytecode")
-    assert str(exc_unauth.value).startswith("ERR_NOT_UPGRADER")
 
     gl.message.sender_address = Address(UPGRADER)
     contract.upgrade(b"new_bond_bytecode")
     assert gl.storage.Root.get().code._value == bytearray(b"new_bond_bytecode")
+    assert contract.get_merchant(MERCHANT) == merchant_before
+    assert contract.get_config() == config_before
+    assert contract.is_upgrader(UPGRADER) is True
 
 
 def test_23_storage_layout_snapshot_merchant_bond():
@@ -767,23 +772,56 @@ def test_28_judge_appeal_consensus_outcomes(monkeypatch):
     assert claim3["verdict"] == VERDICT_DECEPTIVE
 
 
-def test_29_settle_all_verdicts_and_bookkeeping(monkeypatch):
+@pytest.mark.parametrize(
+    (
+        "verdict",
+        "expected_bond",
+        "expected_strikes",
+        "expected_buyer",
+        "expected_merchant",
+        "expected_pool",
+    ),
+    [
+        (VERDICT_GENUINE, 10_000, 0, 0, 50, 50),
+        (VERDICT_INFLATED, 9_500, 1, 600, 0, 0),
+        (VERDICT_DECEPTIVE, 9_000, 1, 1_100, 0, 0),
+        (VERDICT_INSUFFICIENT, 10_000, 0, 100, 0, 0),
+    ],
+)
+def test_29_settle_all_verdicts_and_bookkeeping(
+    monkeypatch,
+    verdict,
+    expected_bond,
+    expected_strikes,
+    expected_buyer,
+    expected_merchant,
+    expected_pool,
+):
     contract, ledger, _ = make_bond(monkeypatch)
     claim_id = prepare_claim(contract, ledger)
 
     gl._fake_page = "Page"
-    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 9000, "reasoning": "deceptive"}'
+    gl._fake_llm_output = (
+        '{"verdict": "'
+        + verdict
+        + '", "confidence_bp": 9000, "reasoning": "settlement case"}'
+    )
     contract.judge_claim(claim_id)
 
     monkeypatch.setattr(bond_mod, "_now", lambda: NOW + 400)
     contract.finalize_unappealed(claim_id)
-
     contract.settle(claim_id)
 
     assert contract.get_claim(claim_id)["state"] == STATE_SETTLED
-    assert contract.get_merchant(MERCHANT)["strikes"] == 1
-    assert contract.get_merchant(MERCHANT)["bond_wei"] == 9000
-    assert contract.get_withdrawable(BUYER)["amount_wei"] == 1100
+    assert contract.get_merchant(MERCHANT)["strikes"] == expected_strikes
+    assert contract.get_merchant(MERCHANT)["bond_wei"] == expected_bond
+    assert contract.get_withdrawable(BUYER)["amount_wei"] == expected_buyer
+    assert (
+        contract.get_withdrawable(MERCHANT)["amount_wei"]
+        == expected_merchant
+    )
+    assert contract.get_config()["pool_wei"] == expected_pool
+    assert_error("ERR_BAD_TRANSITION", contract.settle, claim_id)
 
 
 def test_30_withdraw_zero_before_transfer(monkeypatch):
@@ -799,8 +837,17 @@ def test_30_withdraw_zero_before_transfer(monkeypatch):
     gl.message.sender_address = Address(BUYER)
     assert contract.get_withdrawable(BUYER)["amount_wei"] == 1100
 
+    recorder = TransferRecorder(contract)
+    monkeypatch.setattr(bond_mod, "_Recipient", recorder)
     contract.withdraw()
     assert contract.get_withdrawable(BUYER)["amount_wei"] == 0
+    assert recorder.calls == [
+        {
+            "recipient": Address(BUYER),
+            "value": 1100,
+            "entry_at_emit": 0,
+        }
+    ]
 
     assert_error("ERR_NOTHING_TO_WITHDRAW", contract.withdraw)
 
@@ -838,6 +885,22 @@ def test_32_struck_out_merchant_banned(monkeypatch):
     assert contract.get_merchant(MERCHANT)["strikes"] == 1
 
     gl.message.sender_address = Address(MERCHANT)
+    gl.message.value = 100
+    assert_error("ERR_MERCHANT_INACTIVE", contract.top_up_bond)
+    assert_error(
+        "ERR_MERCHANT_INACTIVE",
+        contract.add_product,
+        "https://shop.test/banned",
+    )
+    assert_error(
+        "ERR_MERCHANT_INACTIVE",
+        contract.announce_sale,
+        2,
+        20_000,
+        1_000,
+        600,
+        "GBP",
+    )
     gl.message.value = 10000
     assert_error("ERR_BANNED", contract.register_merchant, "Re-try")
 
@@ -958,7 +1021,9 @@ def test_39_withdraw_bond_blocked_by_open_claim(monkeypatch):
 def test_40_voluntary_exit_and_reactivation(monkeypatch):
     contract, ledger, clock = make_bond(monkeypatch)
     register(contract)
-    sale_id = announce(contract, ledger)
+    contract.merchants[Address(MERCHANT)].strikes = 1
+    joined_at = contract.get_merchant(MERCHANT)["joined_at"]
+    announce(contract, ledger)
     clock["now"] = NOW + 601
 
     gl.message.sender_address = Address(MERCHANT)
@@ -966,10 +1031,25 @@ def test_40_voluntary_exit_and_reactivation(monkeypatch):
     assert contract.get_merchant(MERCHANT)["active"] is False
 
     # Re-register merchant after exit
-    gl.message.value = 10000
+    gl.message.value = 12_345
     contract.register_merchant("Re-joined Merchant")
-    assert contract.get_merchant(MERCHANT)["active"] is True
-    assert contract.get_merchant(MERCHANT)["name"] == "Re-joined Merchant"
+    merchant = contract.get_merchant(MERCHANT)
+    assert merchant["active"] is True
+    assert merchant["name"] == "Re-joined Merchant"
+    assert merchant["bond_wei"] == 12_345
+    assert merchant["strikes"] == 1
+    assert merchant["joined_at"] == joined_at
+
+    gl.message.value = 55
+    contract.top_up_bond()
+    assert contract.get_merchant(MERCHANT)["bond_wei"] == 12_400
+    gl.message.value = 0
+    contract.add_product("https://shop.test/reactivated")
+    assert ledger.calls[-1]["args"] == (
+        "https://shop.test/reactivated",
+        Address(MERCHANT),
+    )
+    assert announce(contract, ledger, product_id=2) == 2
 
 
 def test_41_validate_verdict_adversarial_suite():
@@ -982,6 +1062,12 @@ def test_41_validate_verdict_adversarial_suite():
         '{"verdict": "GENUINE", "confidence_bp": 10001, "reasoning": "ok"}',
         '{"verdict": "GENUINE", "confidence_bp": 8500, "reasoning": "' + ('x' * 401) + '"}',
         '{"verdict": "GENUINE", "confidence_bp": "8500", "reasoning": "ok"}',
+        '{"verdict": "GENUINE", "confidence_bp": true, "reasoning": "ok"}',
+        '{"verdict": true, "confidence_bp": 8500, "reasoning": "ok"}',
+        '{"verdict": "GENUINE", "confidence_bp": 8500}',
+        '{"verdict": "GENUINE", "confidence_bp": 8500, "reasoning": "ok", "extra": 1}',
+        'prefix {"verdict": "GENUINE", "confidence_bp": 8500, "reasoning": "ok"} suffix',
+        "x" * 2049,
         'NOT_JSON',
         '[]',
     ]
@@ -1078,3 +1164,50 @@ def test_46_full_appealed_journey_bookkeeping(monkeypatch):
 
     # Buyer: deposit (100) + compensation (1000) + appeal bond refund (200) = 1300 wei withdrawable
     assert contract.get_withdrawable(BUYER)["amount_wei"] == 1300
+
+
+def test_47_merchant_address_normalization_at_public_boundaries(monkeypatch):
+    contract, _, _ = make_bond(monkeypatch)
+    gl.message.sender_address = int(MERCHANT, 16)
+    gl.message.value = 10_000
+    contract.register_merchant("Integer Sender")
+
+    merchant = contract.get_merchant(int(MERCHANT, 16))
+    assert merchant["addr"] == Address(MERCHANT)
+    assert contract.is_upgrader(int(UPGRADER, 16)) is True
+
+    gl.message.value = 25
+    contract.top_up_bond()
+    assert contract.get_merchant(MERCHANT)["bond_wei"] == 10_025
+
+    for bad in (True, None, 3.14, b"short", "0x1234", 2 ** 200):
+        with pytest.raises(gl.vm.UserError) as exc_info:
+            contract.get_merchant(bad)
+        assert str(exc_info.value).startswith("ERR_BAD_ADDRESS")
+
+
+def test_48_appeal_outcome_helper_boundaries():
+    assert (
+        bond_mod._appeal_should_overturn(
+            VERDICT_INFLATED, 7499, VERDICT_GENUINE
+        )
+        is False
+    )
+    assert (
+        bond_mod._appeal_should_overturn(
+            VERDICT_INFLATED, 7500, VERDICT_GENUINE
+        )
+        is True
+    )
+    assert (
+        bond_mod._appeal_should_overturn(
+            VERDICT_DECEPTIVE, 7501, VERDICT_GENUINE
+        )
+        is True
+    )
+    assert (
+        bond_mod._appeal_should_overturn(
+            VERDICT_GENUINE, 10_000, VERDICT_GENUINE
+        )
+        is False
+    )

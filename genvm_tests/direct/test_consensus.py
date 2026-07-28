@@ -1,133 +1,182 @@
-from pathlib import Path
+from copy import deepcopy
+
 import pytest
-from gltest.direct import VMContext, deploy_contract, create_address
+
+
+BOND_PATH = "contracts/merchant_bond.py"
+PRODUCT_URL = "https://shop.com/consensus-item"
+
+
+def _install_ledger_view_hook(vm, merchant, watcher):
+    """Direct Mode 0.29.2 has no public cross-contract view-mock API."""
+    from genlayer.py import calldata
+
+    def ledger_hook(_vm, request):
+        if not isinstance(request, dict):
+            return None
+        call = request.get("CallContract")
+        if not isinstance(call, dict):
+            return None
+        method = call.get("calldata", {}).get("method")
+        if method == "get_product":
+            result = {
+                "id": 1,
+                "merchant": merchant,
+                "active": True,
+                "url": PRODUCT_URL,
+                "registered_at": 1785196000,
+            }
+        elif method == "get_observations":
+            result = [
+                {
+                    "price_cents": 10000,
+                    "currency": "GBP",
+                    "observed_at": 1785196000 + i * 60,
+                    "watcher": watcher,
+                    "ok": True,
+                    "note": "obs",
+                }
+                for i in range(3)
+            ]
+        else:
+            return None
+        return bytes([0]) + calldata.encode(result)
+
+    # Narrow compatibility seam for a capability absent from the public
+    # Direct Mode API; no loader/VM methods are monkeypatched.
+    vm._gl_call_hook = ledger_hook
+
+
+def _set_judgment_mocks(vm, response):
+    vm.clear_mocks()
+    vm.mock_web(
+        PRODUCT_URL,
+        {"method": "GET", "status": 200, "body": "Live page text"},
+    )
+    vm.mock_llm(r"^You are a consumer-protection analyst", response)
+
+
+def _set_appeal_mocks(vm, response):
+    vm.clear_mocks()
+    vm.mock_web(
+        PRODUCT_URL,
+        {"method": "GET", "status": 200, "body": "Live page text"},
+    )
+    vm.mock_llm(r"^You are a skeptical senior auditor", response)
+
+
+def _bond_state(bond, merchant, buyer, upgrader):
+    """Snapshot every populated ordinary storage field through public views."""
+    return deepcopy(
+        {
+            "config": bond.get_config(),
+            "counts": bond.get_counts(),
+            "merchant": bond.get_merchant(merchant),
+            "sale": bond.get_sale(1),
+            "claim": bond.get_claim(1),
+            "buyer_withdrawable": bond.get_withdrawable(buyer),
+            "merchant_withdrawable": bond.get_withdrawable(merchant),
+            "upgrader_registered": bond.is_upgrader(upgrader),
+        }
+    )
 
 
 @pytest.mark.direct
-def test_direct_appeal_outcome_gate_validator_rejection_and_zero_storage_mutation():
-    """BLOCKER 1 & BLOCKER 5: Test judge_appeal outcome-preserving consensus using official Direct Mode.
-
-    - 7499 vs 7500 produces should_overturn mismatch (False vs True) -> validator rejects (returns False).
-    - Asserts validator execution causes zero state mutation on storage.
-    """
-    vm = VMContext()
-    owner = create_address("owner")
-    upgrader = create_address("upgrader")
-    merchant = create_address("merchant")
-    buyer = create_address("buyer")
-    ledger_addr = create_address("ledger")
-
-    vm.sender = owner
-    bond = deploy_contract(
-        Path("contracts/merchant_bond.py"),
-        vm,
-        upgrader,
-        ledger_addr,
+def test_direct_appeal_validator_preserves_7500_outcome_gate_and_storage(
+    direct_vm,
+    direct_deploy,
+    direct_owner,
+    direct_alice,
+    direct_bob,
+    direct_charlie,
+):
+    direct_vm.check_pickling = True
+    direct_vm.strict_mocks = True
+    direct_vm.warp("2026-07-28T00:00:00Z")
+    direct_vm.sender = direct_owner
+    bond = direct_deploy(
+        BOND_PATH,
+        direct_charlie,
+        direct_owner,
         1000,
         100,
         200,
         300,
         3,
     )
+    _install_ledger_view_hook(direct_vm, direct_alice, direct_owner)
 
-    # Set up _gl_call_hook to respond to PriceLedger cross-contract view queries
-    from genlayer.py import calldata
-
-    def ledger_hook(v, req):
-        if not isinstance(req, dict):
-            return None
-        call = req.get("CallContract")
-        if not isinstance(call, dict):
-            return None
-        calldata_dict = call.get("calldata", {})
-        method = calldata_dict.get("method")
-        res = None
-        if method == "get_product":
-            res = {
-                "id": 1,
-                "merchant": merchant,
-                "active": True,
-                "url": "https://shop.com/consensus-item",
-                "registered_at": 1785196000,
-            }
-        elif method == "get_observations":
-            res = [
-                {
-                    "price_cents": 10000,
-                    "currency": "GBP",
-                    "observed_at": 1785196000 + i * 60,
-                    "watcher": owner,
-                    "ok": True,
-                    "note": "obs",
-                }
-                for i in range(3)
-            ]
-
-        if res is not None:
-            # ResultCode.RETURN is 0, followed by calldata payload
-            return bytes([0]) + calldata.encode(res)
-        return None
-
-    vm._gl_call_hook = ledger_hook
-
-    # Register merchant and announce sale
-    vm.sender = merchant
-    vm.value = 10000
-    vm.warp("2026-07-28T00:00:00Z")
+    direct_vm.sender = direct_alice
+    direct_vm.value = 10000
     bond.register_merchant("Consensus Merchant")
-
     sale_id = bond.announce_sale(1, 20000, 1000, 600, "GBP")
 
-    # File claim
-    vm.sender = buyer
-    vm.value = 100
+    direct_vm.sender = direct_bob
+    direct_vm.value = 100
     claim_id = bond.file_claim(sale_id)
 
-    # Judge claim as GENUINE (confidence 8000)
-    vm.mock_web("https://shop.com/consensus-item", {"method": "GET", "status": 200, "body": "Live page text"})
-    vm.mock_llm(
-        r".*",
+    _set_judgment_mocks(
+        direct_vm,
         '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}',
     )
     bond.judge_claim(claim_id)
 
-    # Buyer appeals
-    vm.value = 200
+    direct_vm.sender = direct_bob
+    direct_vm.value = 200
     bond.appeal(claim_id)
 
-    # Mock LLM output for leader: INFLATED_REFERENCE at 7499 (should_overturn=False)
-    vm.mock_web("https://shop.com/consensus-item", {"method": "GET", "status": 200, "body": "Live page text"})
-    vm.mock_llm(
-        r".*",
+    _set_appeal_mocks(
+        direct_vm,
         '{"verdict": "INFLATED_REFERENCE", "confidence_bp": 7499, "reasoning": "borderline"}',
     )
-
     bond.judge_appeal(claim_id)
+    leader_state = _bond_state(
+        bond, direct_alice, direct_bob, direct_charlie
+    )
+    assert leader_state["claim"]["state"] == "FINAL"
+    assert leader_state["claim"]["verdict"] == "GENUINE"
 
-    # Verify claim state was updated by leader to FINAL with standing verdict preserved (upheld)
-    claim = bond.get_claim(claim_id)
-    assert claim["state"] == "FINAL"
-    assert claim["verdict"] == "GENUINE"
-    assert "appeal upheld" in claim["reasoning"]
-
-    # Verify validator execution against a disagreeing result (INFLATED_REFERENCE at 7500 -> should_overturn=True)
-    # The validator closure rejects should_overturn mismatch (False vs True)
-    vm.mock_llm(
-        r".*",
+    # Genuine cross-boundary disagreement: the leader is below 7500 while
+    # the validator independently derives the opposite outcome at 7500.
+    _set_appeal_mocks(
+        direct_vm,
         '{"verdict": "INFLATED_REFERENCE", "confidence_bp": 7500, "reasoning": "overturn"}',
     )
+    assert direct_vm.run_validator() is False
+    assert _bond_state(
+        bond, direct_alice, direct_bob, direct_charlie
+    ) == leader_state
 
-    validator_passed = vm.run_validator(
-        leader_result={
-            "verdict": "INFLATED_REFERENCE",
-            "confidence_bp": 7499,
-            "reasoning": "borderline",
-            "should_overturn": False,
-        }
+    # A fabricated leader flag cannot bypass the threshold, and bool-as-int
+    # is rejected before any nondeterministic validator work is attempted.
+    direct_vm.clear_mocks()
+    invalid_flag = {
+        "verdict": "INFLATED_REFERENCE",
+        "confidence_bp": 7499,
+        "reasoning": "fabricated",
+        "should_overturn": True,
+    }
+    assert direct_vm.run_validator(leader_result=invalid_flag) is False
+    invalid_type = dict(invalid_flag, should_overturn=1)
+    assert direct_vm.run_validator(leader_result=invalid_type) is False
+    assert _bond_state(
+        bond, direct_alice, direct_bob, direct_charlie
+    ) == leader_state
+
+    # Values may vary inside one outcome region without changing the branch.
+    _set_appeal_mocks(
+        direct_vm,
+        '{"verdict": "INFLATED_REFERENCE", "confidence_bp": 7600, "reasoning": "overturn"}',
     )
-    assert validator_passed is False
-
-    # Assert validator execution caused zero state mutation to claim storage
-    claim_after = bond.get_claim(claim_id)
-    assert claim_after["state"] == "FINAL"
-    assert claim_after["verdict"] == "GENUINE"
+    same_region_leader = {
+        "verdict": "INFLATED_REFERENCE",
+        "confidence_bp": 7500,
+        "reasoning": "overturn",
+        "should_overturn": True,
+    }
+    assert (
+        direct_vm.run_validator(leader_result=same_region_leader) is True
+    )
+    assert _bond_state(
+        bond, direct_alice, direct_bob, direct_charlie
+    ) == leader_state

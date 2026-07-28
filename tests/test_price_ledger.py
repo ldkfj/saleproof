@@ -483,14 +483,24 @@ def test_24_upgradability_constructor_and_upgrade_method():
     assert ledger.is_upgrader(UPGRADER) is True
     assert ledger.is_upgrader(ALICE) is False
 
+    ledger.add_registrar(ALICE)
+    gl.message.sender_address = Address(ALICE)
+    product_id = ledger.register_product(
+        "https://shop.com/upgrade-state", MERCHANT
+    )
+    product_before = ledger.get_product(product_id)
+    config_before = ledger.get_config()
+
     gl.message.sender_address = Address(BOB)
-    with pytest.raises(gl.vm.UserError) as exc_unauth:
+    with pytest.raises(gl.vm.VMError):
         ledger.upgrade(b"unauthorized_bytecode")
-    assert str(exc_unauth.value).startswith("ERR_NOT_UPGRADER")
 
     gl.message.sender_address = Address(UPGRADER)
     ledger.upgrade(b"new_contract_bytecode")
     assert gl.storage.Root.get().code._value == bytearray(b"new_contract_bytecode")
+    assert ledger.get_product(product_id) == product_before
+    assert ledger.get_config() == config_before
+    assert ledger.is_upgrader(UPGRADER) is True
 
 
 def test_25_storage_layout_snapshot_price_ledger():

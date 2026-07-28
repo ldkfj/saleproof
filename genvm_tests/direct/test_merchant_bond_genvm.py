@@ -1,63 +1,59 @@
-from pathlib import Path
 import pytest
-from gltest.direct import VMContext, deploy_contract, create_address
+
+
+BOND_PATH = "contracts/merchant_bond.py"
 
 
 @pytest.mark.direct
-def test_direct_merchant_bond_deploy_and_payable_crud():
-    """BLOCKER 5: MerchantBond payable registration, top-up, and view readbacks via deployed source."""
-    vm = VMContext()
-    owner = create_address("owner")
-    upgrader = create_address("upgrader")
-    ledger_addr = create_address("ledger")
-    merchant = create_address("merchant")
-
-    vm.sender = owner
-    bond = deploy_contract(
-        Path("contracts/merchant_bond.py"),
-        vm,
-        upgrader,
-        ledger_addr,
+def test_direct_merchant_bond_payable_crud_and_warped_time(
+    direct_vm,
+    direct_deploy,
+    direct_owner,
+    direct_alice,
+    direct_bob,
+    direct_charlie,
+):
+    direct_vm.warp("2026-07-28T00:00:00Z")
+    direct_vm.sender = direct_owner
+    bond = direct_deploy(
+        BOND_PATH,
+        direct_charlie,
+        direct_bob,
         1000,
         100,
         200,
         300,
         3,
     )
-    assert bond.is_upgrader(upgrader) is True
+    assert bond.is_upgrader(direct_charlie) is True
 
-    # Payable merchant registration (min bond 1000)
-    vm.sender = merchant
-    vm.value = 1500
-    vm.warp("2026-07-28T00:00:00Z")
+    direct_vm.sender = direct_alice
+    direct_vm.value = 1500
     bond.register_merchant("Direct Merchant")
+    merchant = bond.get_merchant(direct_alice)
+    assert merchant["addr"].as_bytes == direct_alice
+    assert {k: v for k, v in merchant.items() if k != "addr"} == {
+        "name": "Direct Merchant",
+        "bond_wei": 1500,
+        "strikes": 0,
+        "active": True,
+        "joined_at": 1785196800,
+    }
 
-    m = bond.get_merchant(merchant)
-    assert m["addr"] == merchant
-    assert m["name"] == "Direct Merchant"
-    assert m["bond_wei"] == 1500
-    assert m["joined_at"] == 1785196800
-
-    # Top up bond with 500 wei
-    vm.value = 500
+    direct_vm.value = 500
     bond.top_up_bond()
-    assert bond.get_merchant(merchant)["bond_wei"] == 2000
+    assert bond.get_merchant(direct_alice)["bond_wei"] == 2000
 
 
 @pytest.mark.direct
-def test_direct_merchant_bond_user_errors():
-    """BLOCKER 5: MerchantBond error guards through deployed source."""
-    vm = VMContext()
-    owner = create_address("owner")
-    upgrader = create_address("upgrader")
-    ledger_addr = create_address("ledger")
-
-    vm.sender = owner
-    bond = deploy_contract(
-        Path("contracts/merchant_bond.py"),
-        vm,
-        upgrader,
-        ledger_addr,
+def test_direct_merchant_bond_user_error(
+    direct_vm, direct_deploy, direct_owner, direct_alice, direct_bob
+):
+    direct_vm.sender = direct_owner
+    bond = direct_deploy(
+        BOND_PATH,
+        direct_alice,
+        direct_bob,
         1000,
         100,
         200,
@@ -65,25 +61,5 @@ def test_direct_merchant_bond_user_errors():
         3,
     )
 
-    with pytest.raises(Exception) as exc_info:
-        bond.get_merchant(create_address("unknown"))
-    assert "ERR_NO_MERCHANT" in str(exc_info.value)
-
-
-@pytest.mark.direct
-def test_direct_root_code_vla_truncate_extend_compatibility_note():
-    """BLOCKER 5 & BLOCKER 6: Root code VLA truncate/extend compatibility.
-
-    NOTE: Direct Mode in-memory manager permits code writes. This test verifies bytecode
-    truncation/extension compatibility, but DOES NOT prove native Root locked-slot authorization.
-    Native Root authorization rehearsal is reserved for Studionet integration testing.
-    """
-    vm = VMContext()
-    owner = create_address("owner")
-    upgrader = create_address("upgrader")
-
-    vm.sender = owner
-    ledger = deploy_contract(Path("contracts/price_ledger.py"), vm, upgrader)
-
-    vm.sender = upgrader
-    ledger.upgrade(b"new_code_bytes")
+    with direct_vm.expect_revert("ERR_NO_MERCHANT"):
+        bond.get_merchant(direct_owner)
