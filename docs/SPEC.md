@@ -37,8 +37,8 @@ This is a Studionet demonstration. Studionet GEN is test value, not production m
 |---|---|---|
 | Upgrader wallet | Root-slot code replacement for both contracts | Operational key responsibility |
 | PriceLedger registrar | Register and deactivate products | None |
-| Merchant | Stake/top up bond, register products, announce/cancel sales, appeal adverse verdicts, exit when safe | Merchant bond and appeal bond |
-| Buyer | File one canonical claim for a sale, appeal a non-adverse result, withdraw awarded value | Claim deposit and possible appeal bond |
+| Merchant | Deposit reusable credit, stake/top up bond, register products, announce/cancel sales, appeal adverse verdicts, exit when safe | Prepaid credit, merchant bond, and appeal bond |
+| Buyer | Deposit reusable credit, file one canonical claim for a sale, appeal a non-adverse result, withdraw unused/awarded value | Prepaid credit, claim deposit, and possible appeal bond |
 | Watcher | Trigger a public price snapshot | Transaction cost only |
 | Any caller | Trigger judgment, finalization, settlement, and read public views | Transaction cost only |
 
@@ -56,11 +56,12 @@ compared, or used as a `TreeMap` key.
 | Registered Root upgrader | `upgrade` on either contract | GenVM locked Root code slot checks the caller against `Root.upgraders`; contract owner status is irrelevant | Exact `new_code` bytes submitted by the authorized upgrader | Sole code-replacement authority; no in-contract method can add an upgrader | Replaces executable code while retaining storage bytes; no automatic schema migration or on-chain rollback history |
 | PriceLedger owner | `add_registrar`, `remove_registrar` | Sender must equal the normalized constructor owner | Deterministic membership guards | May change registrar membership, but cannot write products, observations, bonds, sales, claims, or verdicts directly | Flips one registrar-map entry |
 | Authorized PriceLedger registrar (normally MerchantBond for registration) | `register_product`, `deactivate_product` | PriceLedger normalizes the caller and requires its address in `registrars`; the `merchant` argument to registration is independently normalized | URL/product guards and registrar membership | May create/deactivate product records only; MerchantBond exposes only its merchant-triggered registration cross-call | Creates a product owned by the supplied merchant or marks an existing product inactive |
-| Merchant wallet | `register_merchant`, `top_up_bond`, `withdraw_bond` | Sender is the merchant key; active/banned/open-claim/live-sale guards apply; payable values come only from `gl.message.value` | Deterministic lifecycle and exact-value guards | May manage only its own merchant record and bond; reactivation preserves lifetime strikes and `joined_at` | Creates/reactivates/tops up a bond, or exits and routes the eligible bond to that sender’s pull-payment balance |
+| Any wallet | `deposit` | Normalized sender is the only credit beneficiary; incoming value cannot name a third party | No business validation; zero is a no-op and every positive value is credited | May fund only its own reusable credit | Increases native contract balance and the same sender's `withdrawable` credit by exactly the same amount |
+| Merchant wallet | `register_merchant`, `top_up_bond`, `withdraw_bond` | Sender is the merchant key; active/banned/open-claim/live-sale guards apply; registration/top-up consume only the sender's prepaid credit | Deterministic lifecycle, amount, and credit guards | May manage only its own merchant record and bond; reactivation preserves lifetime strikes and `joined_at` | Reclassifies sender credit into a bond, tops up that bond, or exits and routes the eligible bond back to sender credit |
 | Merchant wallet | `add_product`, `announce_sale`, `cancel_sale` | Product addition and sale announcement require an active merchant; cancellation requires sale ownership but intentionally remains available after merchant deactivation | Deterministic product, history, currency, duration, ownership, and state guards; PriceLedger supplies frozen history | Cannot manufacture observations or cancel another merchant’s sale | Registers a linked product, freezes the observation boundary in a sale, or deactivates an unclaimed sale |
 | Watcher wallet | `snapshot` | Any sender may trigger; normalized sender is stored only after deterministic product/active/cap/cooldown guards pass | Validator-replicated web render, strict extraction, and equivalence principle | Chooses when to request an eligible snapshot, not the returned price/currency/note | Appends one bounded observation and records the watcher address |
-| Buyer wallet | `file_claim` | Sender becomes normalized buyer; self-claim, sale state, one-claim, exact deposit, and merchant bond-coverage guards apply | Deterministic guards and `gl.message.value` | May open one canonical claim on another merchant’s active sale | Locks the exact claim deposit, links claim to sale, and freezes buyer identity |
-| Eligible merchant or buyer | `appeal` | Normalized sender must be the losing-side merchant/buyer encoded by the standing verdict; exact appeal bond and window required | Deterministic role, state, time, and value guards | May request one second judgment; cannot choose the appeal outcome | Locks appeal bond and records appellant/original verdict |
+| Buyer wallet | `file_claim` | Sender becomes normalized buyer; self-claim, sale state, one-claim, exact deposit amount, merchant bond-coverage, and prepaid-credit guards apply | Deterministic guards; no native value is attached to the guarded operation | May open one canonical claim on another merchant's active sale | Reclassifies the exact deposit from buyer credit, links claim to sale, and freezes buyer identity |
+| Eligible merchant or buyer | `appeal` | Normalized sender must be the losing-side merchant/buyer encoded by the standing verdict; exact appeal amount, window, and prepaid credit are required | Deterministic role, state, time, amount, and credit guards; no native value is attached | May request one second judgment; cannot choose the appeal outcome | Reclassifies the appeal bond from appellant credit and records appellant/original verdict |
 | Any wallet | `judge_claim`, `judge_appeal` | Caller identity is not trusted or stored; only claim state selects eligibility | Frozen on-chain history plus fresh validator web access; strict payload validation and consensus determine verdict/confidence | Caller can trigger consensus but cannot supply or override a verdict | Advances `OPEN -> JUDGED` or `APPEALED -> FINAL`; appeal overturn requires the independently recomputed 7,500-bp rule |
 | Any wallet | `finalize_unappealed`, `settle` | Caller identity is irrelevant; state and appeal-window guards are authoritative | `_now()` and deterministic state transition / `compute_settlement` arithmetic | Can advance a mature claim only; cannot redirect proceeds | Advances `JUDGED -> FINAL -> SETTLED`, applies bond slash/strike, and credits fixed pull-payment balances/pool |
 | Balance owner | `withdraw` | Normalized sender indexes only its own `withdrawable` entry | Stored balance and zero-before-transfer order | Cannot select another beneficiary | Zeroes that sender’s ledger entry before native-value transfer |
@@ -206,14 +207,15 @@ appeal bond, original verdict, and timestamps.
 | Method | Mode | Required behavior |
 |---|---|---|
 | `__init__(upgrader, ledger, min_bond, claim_deposit, appeal_bond, appeal_window, strike_limit)` | constructor | Reject zero upgrader, normalize ledger, store config, and register Root upgrader |
-| `register_merchant(name)` | payable | New registration or voluntary-exit reactivation; banned merchants cannot return |
-| `top_up_bond()` | payable | Active merchant only; positive value |
+| `deposit()` | payable | Always credit positive incoming GEN to the normalized sender's reusable `withdrawable` balance; zero is a no-op |
+| `register_merchant(name, bond_wei)` | write | New registration or voluntary-exit reactivation funded from sender credit; banned merchants cannot return |
+| `top_up_bond(amount_wei)` | write | Active merchant only; positive amount funded from sender credit |
 | `add_product(url)` | write | Active merchant only; finalized async call to PriceLedger |
 | `announce_sale(product_id, reference, discount_bp, duration_s, currency)` | write | Active owner of active product; at least three eligible observations |
 | `cancel_sale(sale_id)` | write | Sale merchant only; active and unclaimed |
-| `file_claim(sale_id)` | payable | Exact deposit; non-merchant buyer; open sale; canonical first claim; bond coverage |
+| `file_claim(sale_id, deposit_wei)` | write | Exact configured amount funded from sender credit; non-merchant buyer; open sale; canonical first claim; bond coverage |
 | `judge_claim(claim_id)` | nondeterministic write | `OPEN -> JUDGED` |
-| `appeal(claim_id)` | payable | Eligible losing party, exact appeal bond, inside window |
+| `appeal(claim_id, appeal_bond_wei)` | write | Eligible losing party, exact configured amount funded from sender credit, inside window |
 | `judge_appeal(claim_id)` | nondeterministic write | `APPEALED -> FINAL` |
 | `finalize_unappealed(claim_id)` | write | Window expired; `JUDGED -> FINAL` |
 | `settle(claim_id)` | write | Deterministic pull-payment bookkeeping; `FINAL -> SETTLED` |
@@ -226,6 +228,23 @@ Inactive merchants cannot top up, register products, or announce sales.
 Strike-limit deactivation is a permanent ban. A merchant who exited voluntarily
 may re-register with the minimum bond; their strikes and `joined_at` remain,
 while name and current bond are updated.
+
+Native GEN receipt is deliberately separated from guarded business logic.
+Studionet debits a sender at submission and credits the target at activation;
+an execution error rolls back contract storage but does not reverse that native
+credit. Therefore `deposit()` contains no business guard that can reject
+positive value. Registration, top-up, claim, and appeal are nonpayable: they run
+the existing business guards first, then require the sender's reusable credit
+to cover the requested exact amount
+(`ERR_INSUFFICIENT_CREDIT`), debit that credit, and perform the success
+mutation. If a business operation fails, it carries no attached GEN and all
+prepaid credit remains withdrawable.
+
+Raw value-only transfers and value attached to nonpayable methods are not a
+supported protocol entry path. The pinned runner/schema rejects the documented
+`__receive__` special method, so clients must send GEN only through `deposit()`.
+Unsolicited raw transfers cannot create a user credit and are excluded from the
+protocol-liability equality below.
 
 ### 4.3 Evidence binding
 
@@ -306,6 +325,23 @@ withdrawable by the appellant. `compute_settlement` is pure and settlement
 checks solvency before mutation. New claims reserve worst-case liability against
 the merchant's current bond. Pull payments make settlement independent of a
 recipient callback; `withdraw()` zeroes the claimable balance before transfer.
+
+For supported protocol calls, custody must reconcile exactly at every finalized
+boundary:
+
+```text
+native MerchantBond balance
+  = all merchant bond_wei
+  + claim deposit_wei and appeal_bond_wei for non-SETTLED claims
+  + all withdrawable/prepaid credit
+  + pool_wei
+```
+
+Depositing increases native balance and sender credit equally. A successful
+business action only reclassifies credit into a bond, claim deposit, or appeal
+bond. Settlement reclassifies locked liabilities into bonds, withdrawable
+balances, or pool value. Withdrawal decrements credit before emitting the equal
+native transfer. A failed nonpayable business action changes neither side.
 
 ## 5. Root upgradability and recovery
 

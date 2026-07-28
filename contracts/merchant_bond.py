@@ -350,8 +350,27 @@ class MerchantBond(gl.Contract):
             "claim_count": self.claim_count,
         }
 
+    def _credit_incoming_value(self) -> None:
+        sender = _to_address(gl.message.sender_address)
+        value = gl.message.value
+        if value == 0:
+            return
+        self.withdrawable[sender] = u256(
+            self.withdrawable.get(sender, u256(0)) + value
+        )
+
+    def _consume_credit(self, sender: Address, amount_wei: u256) -> None:
+        available = self.withdrawable.get(sender, u256(0))
+        if available < amount_wei:
+            raise gl.vm.UserError("ERR_INSUFFICIENT_CREDIT")
+        self.withdrawable[sender] = u256(available - amount_wei)
+
     @gl.public.write.payable
-    def register_merchant(self, name: str) -> None:
+    def deposit(self) -> None:
+        self._credit_incoming_value()
+
+    @gl.public.write
+    def register_merchant(self, name: str, bond_wei: u256) -> None:
         sender = _to_address(gl.message.sender_address)
         existing = None
         if sender in self.merchants:
@@ -362,35 +381,35 @@ class MerchantBond(gl.Contract):
                 raise gl.vm.UserError("ERR_BANNED")
         if not name or not name.strip() or len(name) > 100:
             raise gl.vm.UserError("ERR_NAME")
-        value = gl.message.value
-        if value < self.min_bond_wei:
+        if bond_wei < self.min_bond_wei:
             raise gl.vm.UserError("ERR_MIN_BOND")
+        self._consume_credit(sender, bond_wei)
         if existing is not None:
             existing.name = name
-            existing.bond_wei = value
+            existing.bond_wei = bond_wei
             existing.active = True
         else:
             self.merchants[sender] = Merchant(
                 addr=sender,
                 name=name,
-                bond_wei=value,
+                bond_wei=bond_wei,
                 strikes=u64(0),
                 active=True,
                 joined_at=u64(_now()),
             )
 
-    @gl.public.write.payable
-    def top_up_bond(self) -> None:
+    @gl.public.write
+    def top_up_bond(self, amount_wei: u256) -> None:
         sender = _to_address(gl.message.sender_address)
         if sender not in self.merchants:
             raise gl.vm.UserError("ERR_NOT_MERCHANT")
         merchant = self.merchants[sender]
         if not merchant.active:
             raise gl.vm.UserError("ERR_MERCHANT_INACTIVE")
-        value = gl.message.value
-        if value == 0:
+        if amount_wei == 0:
             raise gl.vm.UserError("ERR_ZERO_VALUE")
-        merchant.bond_wei = u256(merchant.bond_wei + value)
+        self._consume_credit(sender, amount_wei)
+        merchant.bond_wei = u256(merchant.bond_wei + amount_wei)
 
     @gl.public.write
     def add_product(self, url: str) -> None:
@@ -484,8 +503,8 @@ class MerchantBond(gl.Contract):
             raise gl.vm.UserError("ERR_SALE_HAS_CLAIMS")
         sale.active = False
 
-    @gl.public.write.payable
-    def file_claim(self, sale_id: u64) -> u64:
+    @gl.public.write
+    def file_claim(self, sale_id: u64, deposit_wei: u256) -> u64:
         key = _id_key(sale_id)
         if key not in self.sales:
             raise gl.vm.UserError("ERR_NO_SALE")
@@ -499,8 +518,7 @@ class MerchantBond(gl.Contract):
         buyer = _to_address(gl.message.sender_address)
         if buyer == _to_address(sale.merchant):
             raise gl.vm.UserError("ERR_SELF_CLAIM")
-        value = gl.message.value
-        if value != self.claim_deposit_wei:
+        if deposit_wei != self.claim_deposit_wei:
             raise gl.vm.UserError("ERR_DEPOSIT")
         if sale.claim_id != 0:
             raise gl.vm.UserError("ERR_SALE_ALREADY_CLAIMED")
@@ -520,13 +538,14 @@ class MerchantBond(gl.Contract):
         if merchant.bond_wei < reserved_wei + worst_case_liability:
             raise gl.vm.UserError("ERR_BOND_COVERAGE")
 
+        self._consume_credit(buyer, deposit_wei)
         self.claim_count = u64(self.claim_count + 1)
         claim_id = self.claim_count
         self.claims[_id_key(claim_id)] = Claim(
             id=claim_id,
             sale_id=sale_id,
             buyer=buyer,
-            deposit_wei=value,
+            deposit_wei=deposit_wei,
             state=STATE_OPEN,
             verdict=VERDICT_NONE,
             confidence_bp=u64(0),
@@ -618,8 +637,8 @@ class MerchantBond(gl.Contract):
         claim.judged_at = now
         _transition(claim, "judge")
 
-    @gl.public.write.payable
-    def appeal(self, claim_id: u64) -> None:
+    @gl.public.write
+    def appeal(self, claim_id: u64, appeal_bond_wei: u256) -> None:
         key = _id_key(claim_id)
         if key not in self.claims:
             raise gl.vm.UserError("ERR_NO_CLAIM")
@@ -629,8 +648,7 @@ class MerchantBond(gl.Contract):
         now = u64(_now())
         if now > claim.judged_at + self.appeal_window_s:
             raise gl.vm.UserError("ERR_APPEAL_WINDOW_CLOSED")
-        value = gl.message.value
-        if value != self.appeal_bond_wei:
+        if appeal_bond_wei != self.appeal_bond_wei:
             raise gl.vm.UserError("ERR_APPEAL_BOND")
 
         sender = _to_address(gl.message.sender_address)
@@ -648,8 +666,9 @@ class MerchantBond(gl.Contract):
         if not merchant_may_appeal and not buyer_may_appeal:
             raise gl.vm.UserError("ERR_NOT_APPELLANT")
 
+        self._consume_credit(sender, appeal_bond_wei)
         claim.appellant = sender
-        claim.appeal_bond_wei = value
+        claim.appeal_bond_wei = appeal_bond_wei
         claim.original_verdict = claim.verdict
         _transition(claim, "appeal")
 

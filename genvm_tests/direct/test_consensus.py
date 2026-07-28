@@ -108,12 +108,16 @@ def test_direct_appeal_validator_preserves_7500_outcome_gate_and_storage(
 
     direct_vm.sender = direct_alice
     direct_vm.value = 10000
-    bond.register_merchant("Consensus Merchant")
+    bond.deposit()
+    direct_vm.value = 0
+    bond.register_merchant("Consensus Merchant", 10000)
     sale_id = bond.announce_sale(1, 20000, 1000, 600, "GBP")
 
     direct_vm.sender = direct_bob
     direct_vm.value = 100
-    claim_id = bond.file_claim(sale_id)
+    bond.deposit()
+    direct_vm.value = 0
+    claim_id = bond.file_claim(sale_id, 100)
 
     _set_judgment_mocks(
         direct_vm,
@@ -123,7 +127,9 @@ def test_direct_appeal_validator_preserves_7500_outcome_gate_and_storage(
 
     direct_vm.sender = direct_bob
     direct_vm.value = 200
-    bond.appeal(claim_id)
+    bond.deposit()
+    direct_vm.value = 0
+    bond.appeal(claim_id, 200)
 
     _set_appeal_mocks(
         direct_vm,
