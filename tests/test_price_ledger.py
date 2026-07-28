@@ -1,7 +1,7 @@
 import pytest
 from genlayer import gl, Address
 import contracts.price_ledger as ledger_mod
-from contracts.price_ledger import PriceLedger, Observation, validate_extraction
+from contracts.price_ledger import PriceLedger, Product, Observation, validate_extraction
 
 
 OWNER = "0x1111111111111111111111111111111111111111"
@@ -14,7 +14,7 @@ ZERO = "0x0000000000000000000000000000000000000000"
 
 @pytest.fixture(autouse=True)
 def reset_gl():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     gl._fake_page = ""
     gl._fake_llm_output = ""
     gl._last_url = ""
@@ -25,7 +25,7 @@ def reset_gl():
 
 
 def test_1_constructor_sets_owner_and_params():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER, snapshot_cooldown_s=600, max_observations=1000)
     assert ledger.owner == Address(OWNER)
     assert ledger.snapshot_cooldown_s == 600
@@ -36,20 +36,20 @@ def test_1_constructor_sets_owner_and_params():
 
 
 def test_2_add_registrar_by_owner_and_non_owner():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
 
     ledger.add_registrar(ALICE)
     assert ledger.is_registrar(ALICE) is True
 
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     with pytest.raises(gl.vm.UserError) as exc_info:
         ledger.add_registrar(BOB)
     assert str(exc_info.value).startswith("ERR_NOT_OWNER")
 
 
 def test_3_registrar_management_edge_cases():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
 
@@ -66,21 +66,21 @@ def test_3_registrar_management_edge_cases():
 
 
 def test_4_register_product_by_non_registrar():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
 
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     with pytest.raises(gl.vm.UserError) as exc_info:
         ledger.register_product("https://example.com/product", MERCHANT)
     assert str(exc_info.value).startswith("ERR_NOT_REGISTRAR")
 
 
 def test_5_happy_path_register(monkeypatch):
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
 
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
     monkeypatch.setattr(ledger_mod, "_now", lambda: 1710000000)
     p_id = ledger.register_product("https://shop.com/item1", MERCHANT)
     assert p_id == 1
@@ -97,10 +97,10 @@ def test_5_happy_path_register(monkeypatch):
 
 
 def test_6_url_guards():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     with pytest.raises(gl.vm.UserError) as exc1:
         ledger.register_product("", MERCHANT)
@@ -122,10 +122,10 @@ def test_6_url_guards():
 
 
 def test_7_duplicate_and_deactivate_product():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     url = "https://shop.com/deal"
     p_id1 = ledger.register_product(url, MERCHANT)
@@ -146,10 +146,10 @@ def test_7_duplicate_and_deactivate_product():
 
 
 def test_8_get_recent_observations():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     p_id = ledger.register_product("https://shop.com/shoes", MERCHANT)
 
@@ -175,7 +175,7 @@ def test_8_get_recent_observations():
 
 
 def test_9_get_product_unknown_id():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
 
     with pytest.raises(gl.vm.UserError) as exc_info:
@@ -188,10 +188,10 @@ def test_9_get_product_unknown_id():
 
 
 def test_10_product_count_and_sequential_ids():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     id1 = ledger.register_product("https://shop.com/item1", MERCHANT)
     id2 = ledger.register_product("https://shop.com/item2", MERCHANT)
@@ -204,10 +204,10 @@ def test_10_product_count_and_sequential_ids():
 
 
 def test_11_get_recent_observations_k_zero():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     p_id = ledger.register_product("https://shop.com/hat", MERCHANT)
     obs = Observation(
@@ -225,10 +225,10 @@ def test_11_get_recent_observations_k_zero():
 
 
 def test_12_snapshot_guards():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     with pytest.raises(gl.vm.UserError) as exc_info:
         ledger.snapshot(999)
@@ -243,10 +243,10 @@ def test_12_snapshot_guards():
 
 
 def test_13_snapshot_cooldown(monkeypatch):
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER, snapshot_cooldown_s=300)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     p_id = ledger.register_product("https://shop.com/shoes", MERCHANT)
 
@@ -268,10 +268,10 @@ def test_13_snapshot_cooldown(monkeypatch):
 
 
 def test_14_snapshot_cap(monkeypatch):
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER, snapshot_cooldown_s=100, max_observations=2)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     p_id = ledger.register_product("https://shop.com/watch", MERCHANT)
 
@@ -293,15 +293,15 @@ def test_14_snapshot_cap(monkeypatch):
 
 
 def test_15_snapshot_happy_path(monkeypatch):
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     url = "https://shop.com/blue-shoes"
     p_id = ledger.register_product(url, MERCHANT)
 
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     monkeypatch.setattr(ledger_mod, "_now", lambda: 1700001000)
     gl._fake_page = "Blue Shoes for Sale - Special Price $49.99!"
     gl._fake_llm_output = '{"found": true, "price_cents": 4999, "currency": "USD", "note": "Blue Shoes"}'
@@ -325,14 +325,14 @@ def test_15_snapshot_happy_path(monkeypatch):
 
 
 def test_16_snapshot_not_found_path(monkeypatch):
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     p_id = ledger.register_product("https://shop.com/out-of-stock", MERCHANT)
 
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     monkeypatch.setattr(ledger_mod, "_now", lambda: 1700002000)
     gl._fake_page = "Product is currently out of stock."
     gl._fake_llm_output = '{"found": false, "price_cents": 0, "currency": "USD", "note": "no price"}'
@@ -376,10 +376,10 @@ def test_17_validate_extraction_adversarial_suite():
 
 
 def test_18_snapshot_failed_extraction_cooldown(monkeypatch):
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER, snapshot_cooldown_s=300)
     ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
 
     p_id = ledger.register_product("https://shop.com/coat", MERCHANT)
 
@@ -420,13 +420,13 @@ def test_19_to_address_normalizer():
 
 
 def test_20_registrar_flow_with_int_address_input():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER)
 
     ledger.add_registrar(int(ALICE, 16))
     assert ledger.is_registrar(ALICE) is True
 
-    gl.message.sender_address = ALICE
+    gl.message.sender_address = Address(ALICE)
     p_id = ledger.register_product("https://shop.com/int-addr", int(MERCHANT, 16))
     prod = ledger.get_product(p_id)
     assert prod["merchant"] == Address(MERCHANT)
@@ -463,7 +463,7 @@ def test_22_fence_only_payload_still_fails_strict_parser():
 
 
 def test_23_get_config_round_trip():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     ledger = PriceLedger(UPGRADER, snapshot_cooldown_s=123, max_observations=456)
 
     assert ledger.get_config() == {
@@ -474,7 +474,7 @@ def test_23_get_config_round_trip():
 
 
 def test_24_upgradability_constructor_and_upgrade_method():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     with pytest.raises(gl.vm.UserError) as exc_info:
         PriceLedger(ZERO)
     assert str(exc_info.value).startswith("ERR_BAD_UPGRADER")
@@ -483,5 +483,93 @@ def test_24_upgradability_constructor_and_upgrade_method():
     assert ledger.is_upgrader(UPGRADER) is True
     assert ledger.is_upgrader(ALICE) is False
 
+    gl.message.sender_address = Address(BOB)
+    with pytest.raises(gl.vm.UserError) as exc_unauth:
+        ledger.upgrade(b"unauthorized_bytecode")
+    assert str(exc_unauth.value).startswith("ERR_NOT_UPGRADER")
+
+    gl.message.sender_address = Address(UPGRADER)
     ledger.upgrade(b"new_contract_bytecode")
-    assert gl.storage.Root.get().code.get() == bytearray(b"new_contract_bytecode")
+    assert gl.storage.Root.get().code._value == bytearray(b"new_contract_bytecode")
+
+
+def test_25_storage_layout_snapshot_price_ledger():
+    product_annotations = list(Product.__annotations__.items())
+    assert product_annotations == [
+        ("id", ledger_mod.u64),
+        ("url", str),
+        ("merchant", Address),
+        ("registered_at", ledger_mod.u64),
+        ("active", bool),
+    ]
+
+    observation_annotations = list(Observation.__annotations__.items())
+    assert observation_annotations == [
+        ("price_cents", ledger_mod.u64),
+        ("currency", str),
+        ("observed_at", ledger_mod.u64),
+        ("watcher", Address),
+        ("ok", bool),
+        ("note", str),
+    ]
+
+    ledger_annotations = list(PriceLedger.__annotations__.items())
+    assert ledger_annotations == [
+        ("owner", Address),
+        ("products", ledger_mod.TreeMap[ledger_mod.u256, Product]),
+        ("product_count", ledger_mod.u64),
+        ("observations", ledger_mod.TreeMap[ledger_mod.u256, ledger_mod.DynArray[Observation]]),
+        ("registrars", ledger_mod.TreeMap[Address, bool]),
+        ("snapshot_cooldown_s", ledger_mod.u64),
+        ("max_observations", ledger_mod.u64),
+    ]
+
+
+def test_26_deactivate_product_guards_not_registrar():
+    gl.message.sender_address = Address(OWNER)
+    ledger = PriceLedger(UPGRADER)
+    ledger.add_registrar(ALICE)
+
+    gl.message.sender_address = Address(ALICE)
+    p_id = ledger.register_product("https://shop.com/deact", MERCHANT)
+
+    gl.message.sender_address = Address(BOB)
+    with pytest.raises(gl.vm.UserError) as exc_info:
+        ledger.deactivate_product(p_id)
+    assert str(exc_info.value).startswith("ERR_NOT_REGISTRAR")
+
+
+def test_27_deactivate_product_guards_invalid_id():
+    gl.message.sender_address = Address(OWNER)
+    ledger = PriceLedger(UPGRADER)
+    ledger.add_registrar(ALICE)
+
+    gl.message.sender_address = Address(ALICE)
+    with pytest.raises(gl.vm.UserError) as exc_info:
+        ledger.deactivate_product(999)
+    assert str(exc_info.value).startswith("ERR_NO_PRODUCT")
+
+
+def test_28_deactivate_product_guards_already_inactive():
+    gl.message.sender_address = Address(OWNER)
+    ledger = PriceLedger(UPGRADER)
+    ledger.add_registrar(ALICE)
+
+    gl.message.sender_address = Address(ALICE)
+    p_id = ledger.register_product("https://shop.com/deact2", MERCHANT)
+    ledger.deactivate_product(p_id)
+
+    with pytest.raises(gl.vm.UserError) as exc_info:
+        ledger.deactivate_product(p_id)
+    assert str(exc_info.value).startswith("ERR_INACTIVE")
+
+
+def test_29_remove_registrar_non_owner_rejection():
+    gl.message.sender_address = Address(OWNER)
+    ledger = PriceLedger(UPGRADER)
+    ledger.add_registrar(ALICE)
+
+    gl.message.sender_address = Address(BOB)
+    with pytest.raises(gl.vm.UserError) as exc_info:
+        ledger.remove_registrar(ALICE)
+    assert str(exc_info.value).startswith("ERR_NOT_OWNER")

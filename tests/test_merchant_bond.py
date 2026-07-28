@@ -91,7 +91,7 @@ class TransferRecorder:
 
 @pytest.fixture(autouse=True)
 def reset_gl():
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     gl.message.value = 0
     gl._fake_contract = None
     gl._fake_page = ""
@@ -114,7 +114,7 @@ def make_bond(monkeypatch, *, strike_limit=3, min_bond=10_000):
     monkeypatch.setattr(bond_mod, "_now", lambda: clock["now"])
     fake_ledger = FakeLedger()
     gl._fake_contract = fake_ledger
-    gl.message.sender_address = OWNER
+    gl.message.sender_address = Address(OWNER)
     contract = MerchantBond(
         upgrader_address=UPGRADER,
         ledger=LEDGER,
@@ -128,7 +128,7 @@ def make_bond(monkeypatch, *, strike_limit=3, min_bond=10_000):
 
 
 def register(contract, sender=MERCHANT, *, name="Merchant", value=10_000):
-    gl.message.sender_address = sender
+    gl.message.sender_address = Address(sender)
     gl.message.value = value
     contract.register_merchant(name)
     gl.message.value = 0
@@ -153,12 +153,12 @@ def announce(contract, ledger, *, merchant=MERCHANT, product_id=1, currency="GBP
         "url": "https://shop.test/item",
     }
     ledger.observations[product_id] = valid_observations(3, currency=currency)
-    gl.message.sender_address = merchant
+    gl.message.sender_address = Address(merchant)
     return contract.announce_sale(product_id, 20_000, 1_000, 600, currency)
 
 
 def file_claim(contract, sale_id=1, buyer=BUYER):
-    gl.message.sender_address = buyer
+    gl.message.sender_address = Address(buyer)
     gl.message.value = contract.claim_deposit_wei
     claim_id = contract.file_claim(sale_id)
     gl.message.value = 0
@@ -211,11 +211,11 @@ def test_2_registration_guards(monkeypatch):
     contract, _, _ = make_bond(monkeypatch)
     register(contract)
 
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     gl.message.value = 0
     assert_error("ERR_ALREADY_MERCHANT", contract.register_merchant, "")
 
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     gl.message.value = 10_000
     assert_error("ERR_NAME", contract.register_merchant, "   ")
     assert_error("ERR_NAME", contract.register_merchant, "x" * 101)
@@ -227,7 +227,7 @@ def test_3_top_up_happy_path(monkeypatch):
     contract, _, _ = make_bond(monkeypatch)
     register(contract)
 
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     gl.message.value = 250
     contract.top_up_bond()
     assert contract.get_merchant(MERCHANT)["bond_wei"] == 10_250
@@ -235,23 +235,23 @@ def test_3_top_up_happy_path(monkeypatch):
 
 def test_4_top_up_guards(monkeypatch):
     contract, _, _ = make_bond(monkeypatch)
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     gl.message.value = 0
     assert_error("ERR_NOT_MERCHANT", contract.top_up_bond)
 
     register(contract)
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     gl.message.value = 0
     assert_error("ERR_ZERO_VALUE", contract.top_up_bond)
 
 
 def test_5_add_product_guards_and_emit(monkeypatch):
     contract, ledger, _ = make_bond(monkeypatch)
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     assert_error("ERR_NOT_MERCHANT", contract.add_product, "")
 
     register(contract)
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     assert_error("ERR_URL_EMPTY", contract.add_product, "   ")
     assert_error("ERR_URL_SCHEME", contract.add_product, "ftp://shop.test/item")
     assert_error(
@@ -269,11 +269,11 @@ def test_5_add_product_guards_and_emit(monkeypatch):
 
 def test_6_announce_sale_scalar_guards(monkeypatch):
     contract, _, _ = make_bond(monkeypatch)
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     assert_error("ERR_NOT_MERCHANT", contract.announce_sale, 1, 0, 0, 0, "GBP")
 
     register(contract)
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     for price in (0, 1_000_000_001):
         assert_error("ERR_PRICE", contract.announce_sale, 1, price, 1_000, 600, "GBP")
     for discount in (99, 9_501):
@@ -290,7 +290,7 @@ def test_6_announce_sale_scalar_guards(monkeypatch):
 def test_7_announce_sale_product_guards(monkeypatch):
     contract, ledger, _ = make_bond(monkeypatch)
     register(contract)
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     assert_error("ERR_NO_PRODUCT", contract.announce_sale, 1, 1_000, 1_000, 600, "GBP")
 
     ledger.products[1] = {"merchant": BOB, "active": True}
@@ -327,7 +327,7 @@ def test_8_announce_sale_happy_path(monkeypatch):
 def test_9_file_claim_base_guards(monkeypatch):
     contract, ledger, clock = make_bond(monkeypatch)
     register(contract)
-    gl.message.sender_address = BUYER
+    gl.message.sender_address = Address(BUYER)
     assert_error("ERR_NO_SALE", contract.file_claim, 999)
 
     sale_id = announce(contract, ledger)
@@ -335,10 +335,10 @@ def test_9_file_claim_base_guards(monkeypatch):
     assert_error("ERR_SALE_CLOSED", contract.file_claim, sale_id)
     clock["now"] = NOW
 
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     gl.message.value = 100
     assert_error("ERR_SELF_CLAIM", contract.file_claim, sale_id)
-    gl.message.sender_address = BUYER
+    gl.message.sender_address = Address(BUYER)
     gl.message.value = 99
     assert_error("ERR_DEPOSIT", contract.file_claim, sale_id)
 
@@ -356,13 +356,11 @@ def test_10_file_claim_happy_and_canonical_claim_prevention(monkeypatch):
     assert claim["state"] == STATE_OPEN
     assert contract.get_sale(sale_id)["claim_id"] == 1
 
-    # Second claim by same buyer fails with ERR_SALE_ALREADY_CLAIMED
-    gl.message.sender_address = BUYER
+    gl.message.sender_address = Address(BUYER)
     gl.message.value = 100
     assert_error("ERR_SALE_ALREADY_CLAIMED", contract.file_claim, sale_id)
 
-    # Second claim by different buyer ALSO fails with ERR_SALE_ALREADY_CLAIMED
-    gl.message.sender_address = BOB
+    gl.message.sender_address = Address(BOB)
     gl.message.value = 100
     assert_error("ERR_SALE_ALREADY_CLAIMED", contract.file_claim, sale_id)
 
@@ -370,26 +368,23 @@ def test_10_file_claim_happy_and_canonical_claim_prevention(monkeypatch):
 def test_11_file_claim_coverage_guard(monkeypatch):
     contract, ledger, _ = make_bond(monkeypatch, min_bond=1_000)
     register(contract, value=1_000)
-    # Merchant bond = 1,000 wei. Worst case liability per claim = 1,000 * 10% = 100 wei.
-    # First sale + claim: reserved = 0, total needed = 100 <= 1000 => OK
+
     sale1 = announce(contract, ledger, product_id=1)
     claim1 = file_claim(contract, sale1, BUYER)
     assert claim1 == 1
 
-    # Drain bond by repeatedly creating sales and claims up to 10
     for i in range(2, 11):
         ledger.products[i] = {"merchant": MERCHANT, "active": True}
         ledger.observations[i] = valid_observations(3)
-        gl.message.sender_address = MERCHANT
+        gl.message.sender_address = Address(MERCHANT)
         sale_i = contract.announce_sale(i, 20_000, 1_000, 600, "GBP")
         file_claim(contract, sale_i, BUYER)
 
-    # 11th sale claim fails due to ERR_BOND_COVERAGE
     ledger.products[11] = {"merchant": MERCHANT, "active": True}
     ledger.observations[11] = valid_observations(3)
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     sale11 = contract.announce_sale(11, 20_000, 1_000, 600, "GBP")
-    gl.message.sender_address = BUYER
+    gl.message.sender_address = Address(BUYER)
     gl.message.value = 100
     assert_error("ERR_BOND_COVERAGE", contract.file_claim, sale11)
 
@@ -454,20 +449,15 @@ def test_16_transition_illegal_actions():
 
 
 def test_17_evidence_filtering_boundaries_and_prefix():
-    # 9. One second older than lower boundary (NOW - 2_592_000 - 1) is excluded
-    # 10. Exact lower boundary (NOW - 2_592_000) is included
-    # 11. Pre-sale observation included
-    # 12. Wrong currency excluded
-    # 13. ok=False excluded
     announced_at = NOW
     window_start = NOW - 2_592_000
 
     obs_list = [
         {"price_cents": 1000, "currency": "GBP", "observed_at": window_start - 1, "ok": True},
         {"price_cents": 2000, "currency": "GBP", "observed_at": window_start, "ok": True},
-        {"price_cents": 3000, "currency": "USD", "observed_at": NOW - 1000, "ok": True}, # wrong currency
-        {"price_cents": 4000, "currency": "GBP", "observed_at": NOW - 500, "ok": False}, # ok=false
-        {"price_cents": 2500, "currency": "GBP", "observed_at": NOW, "ok": True}, # exact same second inside prefix
+        {"price_cents": 3000, "currency": "USD", "observed_at": NOW - 1000, "ok": True},
+        {"price_cents": 4000, "currency": "GBP", "observed_at": NOW - 500, "ok": False},
+        {"price_cents": 2500, "currency": "GBP", "observed_at": NOW, "ok": True},
     ]
 
     filtered = bond_mod._filter_eligible_observations(obs_list, 5, announced_at, "GBP")
@@ -476,14 +466,9 @@ def test_17_evidence_filtering_boundaries_and_prefix():
 
 
 def test_18_frozen_prefix_and_post_sale_isolation(monkeypatch):
-    # 14. Same-second item inside frozen prefix included
-    # 15. Same-second item appended after frozen cutoff excluded
-    # 16. Post-sale items excluded
-    # 17. > 50 post-sale observations cannot evict 3 pre-sale items
     contract, ledger, _ = make_bond(monkeypatch)
     register(contract)
 
-    # 3 pre-sale observations at NOW
     obs_presale = [
         {"price_cents": 5000, "currency": "GBP", "observed_at": NOW - 100, "ok": True},
         {"price_cents": 4800, "currency": "GBP", "observed_at": NOW - 50, "ok": True},
@@ -495,7 +480,6 @@ def test_18_frozen_prefix_and_post_sale_isolation(monkeypatch):
     sale_id = contract.announce_sale(1, 6000, 1000, 600, "GBP")
     assert contract.get_sale(sale_id)["observation_count_at_announcement"] == 3
 
-    # Append 60 post-sale observations
     for i in range(60):
         ledger.observations[1].append(
             {"price_cents": 10000 + i, "currency": "GBP", "observed_at": NOW + 10 + i, "ok": True}
@@ -508,24 +492,63 @@ def test_18_frozen_prefix_and_post_sale_isolation(monkeypatch):
 
     contract.judge_claim(claim_id)
 
-    # Verify prompt received only pre-sale history (count 3, lowest 4800)
     assert "Total eligible pre-sale observations: 3" in gl._last_prompt
     assert "Observed 30-day lowest price: 4800 cents" in gl._last_prompt
     assert '"p":4800' in gl._last_prompt
     assert '"p":10000' not in gl._last_prompt
 
 
-def test_19_insufficient_history_returns_err_insufficient_history(monkeypatch):
+def test_19_true_over_50_eligible_pre_sale_observations(monkeypatch):
+    """BLOCKER 4: True >50 eligible pre-sale observations inside 30-day window."""
+    contract, ledger, _ = make_bond(monkeypatch)
+    register(contract)
+
+    obs_51 = []
+    obs_51.append({"price_cents": 1000, "currency": "GBP", "observed_at": NOW - 2500000, "ok": True})
+    for i in range(1, 51):
+        obs_51.append({"price_cents": 5000 + i, "currency": "GBP", "observed_at": NOW - 2000000 + i * 100, "ok": True})
+
+    ledger.products[1] = {"merchant": MERCHANT, "active": True, "url": "https://shop.test/item51"}
+    ledger.observations[1] = obs_51
+
+    sale_id = contract.announce_sale(1, 6000, 1000, 600, "GBP")
+    assert contract.get_sale(sale_id)["observation_count_at_announcement"] == 51
+
+    claim_id = file_claim(contract, sale_id)
+
+    gl._fake_page = "Item page text"
+    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 9500, "reasoning": "low price observed"}'
+
+    contract.judge_claim(claim_id)
+
+    prompt = gl._last_prompt
+    assert "Total eligible pre-sale observations: 51" in prompt
+    assert "Observed 30-day lowest price: 1000 cents" in prompt
+
+    history_marker = "(capped to final 50 eligible items, chronological JSON, prices in cents): "
+    start_idx = prompt.find(history_marker) + len(history_marker)
+    end_idx = prompt.find("\nLIVE PAGE TEXT")
+    history_str = prompt[start_idx:end_idx].strip()
+
+    import json
+    history_items = json.loads(history_str)
+    assert len(history_items) == 50
+    assert not any(item["p"] == 1000 for item in history_items)
+    assert history_items[0]["p"] == 5001
+    assert history_items[-1]["p"] == 5050
+
+
+def test_20_insufficient_history_returns_err_insufficient_history(monkeypatch):
     contract, ledger, _ = make_bond(monkeypatch)
     register(contract)
     ledger.products[1] = {"merchant": MERCHANT, "active": True, "url": "https://shop.test/item"}
-    ledger.observations[1] = valid_observations(2, "GBP") # only 2 observations
+    ledger.observations[1] = valid_observations(2, "GBP")
 
-    gl.message.sender_address = MERCHANT
+    gl.message.sender_address = Address(MERCHANT)
     assert_error("ERR_INSUFFICIENT_HISTORY", contract.announce_sale, 1, 6000, 1000, 600, "GBP")
 
 
-def test_20_consensus_failure_leaves_claim_open(monkeypatch):
+def test_21_consensus_failure_leaves_claim_open(monkeypatch):
     contract, ledger, _ = make_bond(monkeypatch)
     claim_id = prepare_claim(contract, ledger)
 
@@ -545,8 +568,8 @@ def test_20_consensus_failure_leaves_claim_open(monkeypatch):
     assert claim["judged_at"] == 0
 
 
-def test_21_upgradability_constructor_and_upgrade(monkeypatch):
-    gl.message.sender_address = OWNER
+def test_22_upgradability_constructor_and_upgrade(monkeypatch):
+    gl.message.sender_address = Address(OWNER)
     with pytest.raises(gl.vm.UserError) as exc_info:
         MerchantBond(ZERO, LEDGER, 1000, 100, 200, 300, 3)
     assert str(exc_info.value).startswith("ERR_BAD_UPGRADER")
@@ -555,12 +578,17 @@ def test_21_upgradability_constructor_and_upgrade(monkeypatch):
     assert contract.is_upgrader(UPGRADER) is True
     assert contract.is_upgrader(BOB) is False
 
+    gl.message.sender_address = Address(BOB)
+    with pytest.raises(gl.vm.UserError) as exc_unauth:
+        contract.upgrade(b"unauthorized_bytecode")
+    assert str(exc_unauth.value).startswith("ERR_NOT_UPGRADER")
+
+    gl.message.sender_address = Address(UPGRADER)
     contract.upgrade(b"new_bond_bytecode")
-    assert gl.storage.Root.get().code.get() == bytearray(b"new_bond_bytecode")
+    assert gl.storage.Root.get().code._value == bytearray(b"new_bond_bytecode")
 
 
-def test_22_storage_and_dataclass_layout_snapshot():
-    # Verify exact class annotations for Merchant, Sale, Claim
+def test_23_storage_layout_snapshot_merchant_bond():
     merchant_annotations = list(Merchant.__annotations__.items())
     assert merchant_annotations == [
         ("addr", Address),
@@ -602,3 +630,451 @@ def test_22_storage_and_dataclass_layout_snapshot():
         ("created_at", bond_mod.u64),
         ("judged_at", bond_mod.u64),
     ]
+
+    bond_annotations = list(MerchantBond.__annotations__.items())
+    assert bond_annotations == [
+        ("owner", Address),
+        ("ledger", Address),
+        ("merchants", bond_mod.TreeMap[Address, Merchant]),
+        ("sales", bond_mod.TreeMap[bond_mod.u256, Sale]),
+        ("sale_count", bond_mod.u64),
+        ("claims", bond_mod.TreeMap[bond_mod.u256, Claim]),
+        ("claim_count", bond_mod.u64),
+        ("withdrawable", bond_mod.TreeMap[Address, bond_mod.u256]),
+        ("pool_wei", bond_mod.u256),
+        ("min_bond_wei", bond_mod.u256),
+        ("claim_deposit_wei", bond_mod.u256),
+        ("appeal_bond_wei", bond_mod.u256),
+        ("appeal_window_s", bond_mod.u64),
+        ("strike_limit", bond_mod.u64),
+    ]
+
+
+def test_24_cancel_sale_lifecycle_and_guards(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    register(contract)
+    sale_id = announce(contract, ledger)
+
+    gl.message.sender_address = Address(BOB)
+    assert_error("ERR_NOT_YOUR_SALE", contract.cancel_sale, sale_id)
+
+    gl.message.sender_address = Address(MERCHANT)
+    contract.cancel_sale(sale_id)
+
+    assert contract.get_sale(sale_id)["active"] is False
+    assert_error("ERR_SALE_INACTIVE", contract.cancel_sale, sale_id)
+
+
+def test_25_cancel_sale_blocked_if_claim_exists(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    register(contract)
+    sale_id = announce(contract, ledger)
+    file_claim(contract, sale_id)
+
+    gl.message.sender_address = Address(MERCHANT)
+    assert_error("ERR_SALE_HAS_CLAIMS", contract.cancel_sale, sale_id)
+
+
+def test_26_finalize_unappealed_window_open_and_closed(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page text"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 9000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id)
+
+    assert_error("ERR_APPEAL_WINDOW_OPEN", contract.finalize_unappealed, claim_id)
+
+    clock["now"] = NOW + 301
+    contract.finalize_unappealed(claim_id)
+    assert contract.get_claim(claim_id)["state"] == STATE_FINAL
+
+
+def test_27_appeal_guards_and_appellant_permissions(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page text"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 9000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id)
+
+    gl.message.sender_address = Address(MERCHANT)
+    gl.message.value = contract.appeal_bond_wei
+    assert_error("ERR_NOT_APPELLANT", contract.appeal, claim_id)
+
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = 10
+    assert_error("ERR_APPEAL_BOND", contract.appeal, claim_id)
+
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+    assert contract.get_claim(claim_id)["state"] == STATE_APPEALED
+
+
+def test_28_judge_appeal_consensus_outcomes(monkeypatch):
+    """BLOCKER 1: Outcome-preserving appeal consensus tests."""
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page text"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id)
+
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+    assert contract.get_claim(claim_id)["state"] == STATE_APPEALED
+
+    # Test 1: Re-judge with INFLATED_REFERENCE at 7499 -> should_overturn is False -> appeal upheld
+    gl._fake_llm_output = '{"verdict": "INFLATED_REFERENCE", "confidence_bp": 7499, "reasoning": "borderline"}'
+    contract.judge_appeal(claim_id)
+    claim = contract.get_claim(claim_id)
+    assert claim["state"] == STATE_FINAL
+    assert claim["verdict"] == VERDICT_GENUINE
+    assert "appeal upheld" in claim["reasoning"]
+
+    # Re-setup for 7500 test using product_id=2
+    sale_id2 = announce(contract, ledger, product_id=2)
+    claim_id2 = file_claim(contract, sale_id2, buyer=BOB)
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id2)
+    gl.message.sender_address = Address(BOB)
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id2)
+
+    # Test 2: Re-judge with INFLATED_REFERENCE at 7500 -> should_overturn is True -> overturned
+    gl._fake_llm_output = '{"verdict": "INFLATED_REFERENCE", "confidence_bp": 7500, "reasoning": "clear inflation"}'
+    contract.judge_appeal(claim_id2)
+    claim2 = contract.get_claim(claim_id2)
+    assert claim2["state"] == STATE_FINAL
+    assert claim2["verdict"] == VERDICT_INFLATED
+    assert claim2["confidence_bp"] == 7500
+
+    # Re-setup for 7501 test using product_id=3
+    sale_id3 = announce(contract, ledger, product_id=3)
+    claim_id3 = file_claim(contract, sale_id3, buyer="0x6666666666666666666666666666666666666666")
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id3)
+    gl.message.sender_address = Address("0x6666666666666666666666666666666666666666")
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id3)
+
+    # Test 3: Re-judge with DECEPTIVE at 7501 -> should_overturn is True -> overturned
+    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 7501, "reasoning": "deceptive price"}'
+    contract.judge_appeal(claim_id3)
+    claim3 = contract.get_claim(claim_id3)
+    assert claim3["state"] == STATE_FINAL
+    assert claim3["verdict"] == VERDICT_DECEPTIVE
+
+
+def test_29_settle_all_verdicts_and_bookkeeping(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 9000, "reasoning": "deceptive"}'
+    contract.judge_claim(claim_id)
+
+    monkeypatch.setattr(bond_mod, "_now", lambda: NOW + 400)
+    contract.finalize_unappealed(claim_id)
+
+    contract.settle(claim_id)
+
+    assert contract.get_claim(claim_id)["state"] == STATE_SETTLED
+    assert contract.get_merchant(MERCHANT)["strikes"] == 1
+    assert contract.get_merchant(MERCHANT)["bond_wei"] == 9000
+    assert contract.get_withdrawable(BUYER)["amount_wei"] == 1100
+
+
+def test_30_withdraw_zero_before_transfer(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 9000, "reasoning": "deceptive"}'
+    contract.judge_claim(claim_id)
+    monkeypatch.setattr(bond_mod, "_now", lambda: NOW + 400)
+    contract.finalize_unappealed(claim_id)
+    contract.settle(claim_id)
+
+    gl.message.sender_address = Address(BUYER)
+    assert contract.get_withdrawable(BUYER)["amount_wei"] == 1100
+
+    contract.withdraw()
+    assert contract.get_withdrawable(BUYER)["amount_wei"] == 0
+
+    assert_error("ERR_NOTHING_TO_WITHDRAW", contract.withdraw)
+
+
+def test_31_withdraw_bond_guards_and_success(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    register(contract)
+    sale_id = announce(contract, ledger)
+
+    gl.message.sender_address = Address(MERCHANT)
+    assert_error("ERR_ACTIVE_SALES", contract.withdraw_bond)
+
+    clock["now"] = NOW + 601
+    contract.withdraw_bond()
+
+    assert contract.get_merchant(MERCHANT)["active"] is False
+    assert contract.get_merchant(MERCHANT)["bond_wei"] == 0
+    assert contract.get_withdrawable(MERCHANT)["amount_wei"] == 10000
+
+
+def test_32_struck_out_merchant_banned(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch, strike_limit=1)
+    register(contract)
+    sale_id = announce(contract, ledger)
+    claim_id = file_claim(contract, sale_id)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 9000, "reasoning": "deceptive"}'
+    contract.judge_claim(claim_id)
+    clock["now"] = NOW + 400
+    contract.finalize_unappealed(claim_id)
+    contract.settle(claim_id)
+
+    assert contract.get_merchant(MERCHANT)["active"] is False
+    assert contract.get_merchant(MERCHANT)["strikes"] == 1
+
+    gl.message.sender_address = Address(MERCHANT)
+    gl.message.value = 10000
+    assert_error("ERR_BANNED", contract.register_merchant, "Re-try")
+
+
+def test_33_judge_appeal_guards_not_in_claims(monkeypatch):
+    contract, _, _ = make_bond(monkeypatch)
+    assert_error("ERR_NO_CLAIM", contract.judge_appeal, 999)
+
+
+def test_34_judge_appeal_guards_wrong_state(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+    # Claim is OPEN, not APPEALED -> ERR_BAD_TRANSITION
+    assert_error("ERR_BAD_TRANSITION", contract.judge_appeal, claim_id)
+
+
+def test_35_judge_appeal_insufficient_history_short_circuit(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 9000, "reasoning": "valid"}'
+    contract.judge_claim(claim_id)
+
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+
+    # Empty observations before appeal judgment -> short circuits to state FINAL
+    ledger.observations[1] = []
+    contract.judge_appeal(claim_id)
+    assert contract.get_claim(claim_id)["state"] == STATE_FINAL
+
+
+def test_36_judge_appeal_consensus_failure_leaves_state_appealed(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 9000, "reasoning": "valid"}'
+    contract.judge_claim(claim_id)
+
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+
+    def raise_majority_disagree(*args, **kwargs):
+        raise gl.vm.UserError("MAJORITY_DISAGREE")
+
+    monkeypatch.setattr(gl.vm, "run_nondet_unsafe", raise_majority_disagree)
+
+    with pytest.raises(gl.vm.UserError) as exc_info:
+        contract.judge_appeal(claim_id)
+    assert str(exc_info.value) == "MAJORITY_DISAGREE"
+
+    # State remains APPEALED
+    assert contract.get_claim(claim_id)["state"] == STATE_APPEALED
+
+
+def test_37_settle_overturned_appeal_refunds_appellant(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id)
+
+    # Buyer appeals
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+
+    # Overturned to DECEPTIVE (confidence 9000)
+    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 9000, "reasoning": "deceptive"}'
+    contract.judge_appeal(claim_id)
+    assert contract.get_claim(claim_id)["state"] == STATE_FINAL
+
+    contract.settle(claim_id)
+    assert contract.get_claim(claim_id)["state"] == STATE_SETTLED
+
+    # Appellant (BUYER) refunded appeal bond (200) + deposit compensation (1100) = 1300
+    assert contract.get_withdrawable(BUYER)["amount_wei"] == 1300
+
+
+def test_38_settle_upheld_appeal_forfeits_appellant_bond_to_pool(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id)
+
+    # Buyer appeals
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+
+    # Upheld (same verdict GENUINE)
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}'
+    contract.judge_appeal(claim_id)
+
+    contract.settle(claim_id)
+
+    # Pool receives appeal bond (200) + merchant share of deposit (50) = 250
+    assert contract.get_config()["pool_wei"] == 250
+
+
+def test_39_withdraw_bond_blocked_by_open_claim(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    register(contract)
+    sale_id = announce(contract, ledger)
+    file_claim(contract, sale_id)
+
+    gl.message.sender_address = Address(MERCHANT)
+    assert_error("ERR_OPEN_CLAIMS", contract.withdraw_bond)
+
+
+def test_40_voluntary_exit_and_reactivation(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    register(contract)
+    sale_id = announce(contract, ledger)
+    clock["now"] = NOW + 601
+
+    gl.message.sender_address = Address(MERCHANT)
+    contract.withdraw_bond()
+    assert contract.get_merchant(MERCHANT)["active"] is False
+
+    # Re-register merchant after exit
+    gl.message.value = 10000
+    contract.register_merchant("Re-joined Merchant")
+    assert contract.get_merchant(MERCHANT)["active"] is True
+    assert contract.get_merchant(MERCHANT)["name"] == "Re-joined Merchant"
+
+
+def test_41_validate_verdict_adversarial_suite():
+    valid = validate_verdict('{"verdict": "GENUINE", "confidence_bp": 8500, "reasoning": "ok"}')
+    assert valid == ("GENUINE", 8500, "ok")
+
+    invalid_payloads = [
+        '{"verdict": "INVALID_VERDICT", "confidence_bp": 8500, "reasoning": "ok"}',
+        '{"verdict": "GENUINE", "confidence_bp": -1, "reasoning": "ok"}',
+        '{"verdict": "GENUINE", "confidence_bp": 10001, "reasoning": "ok"}',
+        '{"verdict": "GENUINE", "confidence_bp": 8500, "reasoning": "' + ('x' * 401) + '"}',
+        '{"verdict": "GENUINE", "confidence_bp": "8500", "reasoning": "ok"}',
+        'NOT_JSON',
+        '[]',
+    ]
+    for payload in invalid_payloads:
+        with pytest.raises(gl.vm.UserError) as exc_info:
+            validate_verdict(payload)
+        assert str(exc_info.value).startswith("ERR_VERDICT_INVALID")
+
+
+def test_42_validate_verdict_fenced_json_variants():
+    fenced = '```json\n{"verdict": "DECEPTIVE", "confidence_bp": 9200, "reasoning": "fenced text"}\n```'
+    assert validate_verdict(fenced) == ("DECEPTIVE", 9200, "fenced text")
+
+
+def test_43_appeal_window_closed_guard(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 9000, "reasoning": "valid"}'
+    contract.judge_claim(claim_id)
+
+    # Fast forward past appeal window (300 s)
+    clock["now"] = NOW + 301
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = contract.appeal_bond_wei
+    assert_error("ERR_APPEAL_WINDOW_CLOSED", contract.appeal, claim_id)
+
+
+def test_44_appeal_merchant_path_for_inflated_verdict(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    claim_id = prepare_claim(contract, ledger)
+
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "INFLATED_REFERENCE", "confidence_bp": 9000, "reasoning": "inflated"}'
+    contract.judge_claim(claim_id)
+
+    # Merchant can appeal INFLATED_REFERENCE
+    gl.message.sender_address = Address(MERCHANT)
+    gl.message.value = contract.appeal_bond_wei
+    contract.appeal(claim_id)
+    assert contract.get_claim(claim_id)["state"] == STATE_APPEALED
+
+
+def test_45_judge_claim_insufficient_history_short_circuit(monkeypatch):
+    contract, ledger, _ = make_bond(monkeypatch)
+    register(contract)
+    ledger.products[1] = {"merchant": MERCHANT, "active": True, "url": "https://shop.test/item"}
+    # Seed 3 observations at announcement
+    ledger.observations[1] = valid_observations(3, "GBP")
+
+    sale_id = contract.announce_sale(1, 20000, 1000, 600, "GBP")
+    claim_id = file_claim(contract, sale_id)
+
+    # Remove observations before judging
+    ledger.observations[1] = []
+
+    contract.judge_claim(claim_id)
+    claim = contract.get_claim(claim_id)
+    assert claim["state"] == STATE_JUDGED
+    assert claim["verdict"] == VERDICT_INSUFFICIENT
+    assert claim["confidence_bp"] == 10000
+
+
+def test_46_full_appealed_journey_bookkeeping(monkeypatch):
+    contract, ledger, clock = make_bond(monkeypatch)
+    register(contract, value=10000)
+    sale_id = announce(contract, ledger)
+    claim_id = file_claim(contract, sale_id, buyer=BUYER)
+
+    # Initial judgment: GENUINE
+    gl._fake_page = "Page"
+    gl._fake_llm_output = '{"verdict": "GENUINE", "confidence_bp": 8000, "reasoning": "genuine"}'
+    contract.judge_claim(claim_id)
+
+    # Buyer appeals with 200 wei appeal bond
+    gl.message.sender_address = Address(BUYER)
+    gl.message.value = 200
+    contract.appeal(claim_id)
+
+    # Re-judge appeal: DECEPTIVE (confidence 8500 >= 7500 -> should_overturn=True)
+    gl._fake_llm_output = '{"verdict": "DECEPTIVE", "confidence_bp": 8500, "reasoning": "deceptive reference"}'
+    contract.judge_appeal(claim_id)
+
+    assert contract.get_claim(claim_id)["state"] == STATE_FINAL
+    assert contract.get_claim(claim_id)["verdict"] == VERDICT_DECEPTIVE
+
+    # Settle
+    contract.settle(claim_id)
+
+    # Merchant: 1 strike, bond reduced by 1000 (10% of 10000) -> 9000
+    assert contract.get_merchant(MERCHANT)["strikes"] == 1
+    assert contract.get_merchant(MERCHANT)["bond_wei"] == 9000
+
+    # Buyer: deposit (100) + compensation (1000) + appeal bond refund (200) = 1300 wei withdrawable
+    assert contract.get_withdrawable(BUYER)["amount_wei"] == 1300

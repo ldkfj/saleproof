@@ -65,7 +65,7 @@ class DynArray(list):
 
 class Message:
     def __init__(self):
-        self.sender_address: Address = "0x0000000000000000000000000000000000000000"
+        self.sender_address: Address = Address("0x0000000000000000000000000000000000000000")
         self.value: u256 = 0
 
 
@@ -145,29 +145,63 @@ class UserError(Exception):
         return self.message
 
 
+class Return:
+    """GenVM Return type wrapper passed to validator closures."""
+
+    def __init__(self, value):
+        self.value = value
+
+
 class VM:
-    def __init__(self):
+    def __init__(self, gl_ref):
+        self._gl = gl_ref
         self.UserError = UserError
+        self.Return = Return
+
+    def run_nondet_unsafe(self, leader_fn, validator_fn):
+        leader_res = leader_fn()
+        wrapped = Return(leader_res)
+        agreed = validator_fn(wrapped)
+        if not agreed:
+            raise UserError("MAJORITY_DISAGREE")
+        return leader_res
 
 
 class StorageSlot:
-    def __init__(self, initial=None):
+    def __init__(self, initial=None, is_code_slot=False):
         self._value = initial if initial is not None else DynArray()
+        self._is_code_slot = is_code_slot
 
     def get(self):
-        return self._value
+        return self
 
     def append(self, val):
         self._value.append(val)
 
     def truncate(self):
+        if self._is_code_slot:
+            sender = gl.message.sender_address
+            upgraders = Root.get().upgraders._value
+            if sender not in upgraders:
+                raise UserError("ERR_NOT_UPGRADER")
         self._value.clear()
 
     def extend(self, new_val):
+        if self._is_code_slot:
+            sender = gl.message.sender_address
+            upgraders = Root.get().upgraders._value
+            if sender not in upgraders:
+                raise UserError("ERR_NOT_UPGRADER")
         if isinstance(new_val, (bytes, bytearray, list)):
             self._value.extend(new_val)
         else:
             self._value.append(new_val)
+
+    def __eq__(self, other):
+        return self._value == other
+
+    def __iter__(self):
+        return iter(self._value)
 
 
 class Root:
@@ -175,7 +209,7 @@ class Root:
 
     def __init__(self):
         self.upgraders = StorageSlot(DynArray())
-        self.code = StorageSlot(bytearray())
+        self.code = StorageSlot(bytearray(), is_code_slot=True)
 
     @classmethod
     def get(cls):
@@ -201,7 +235,7 @@ class GL:
         self.evm = Evm()
         self.nondet = Nondet(self)
         self.eq_principle = EqPrinciple(self)
-        self.vm = VM()
+        self.vm = VM(self)
         self.storage = Storage()
 
         # Settable fakes & recorded call history for tests
