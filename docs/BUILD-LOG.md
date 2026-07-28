@@ -280,3 +280,47 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - No corrected release deployment, GitHub push, Vercel deployment, or submission
   mutation was performed. Those actions remain behind the current user-selected
   identity and explicit-confirmation gates.
+
+## 2026-07-28 — Disposable Root rehearsal — LIVE PASS; RELEASE DEPLOYMENT STILL PENDING
+
+- The first live attempt stopped before any upgrade write because Studionet
+  returned the stored MerchantBond ledger address as an integer while the
+  harness compared it as text. Commit
+  `ad056635af3411e2e3aab5fb7f22ecf37e72a530` canonicalizes 160-bit integer,
+  exact 20-byte, SDK `as_bytes`, and 40-hex address readbacks; invalid forms
+  fail closed. It also records only validated transaction hashes and fixed
+  status/result labels, never raw receipts.
+- The disposable pair was PriceLedger
+  `0xe6227B6C8305EEbdd6468cf4206C18e87bFB19f2` and MerchantBond
+  `0xBAd98e2A9f116A330E6Da062397775752eFC60dE`, seeded with product `1` and three
+  observations plus merchant `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`,
+  sale `1`, and claim `1`. The historical superseded release addresses were
+  supplied only as pairwise-distinct exclusion guards.
+- PriceLedger: unauthorized denial
+  `0xe2e05e55e90b1631ddd5f6c6c4918dc12a7b9980f26c28534f7ce10860f86bd5`;
+  authorized marker
+  `0xe9c63c1f3fed16e9336c8148a5d0db25da7f9fc47520e205514acbcc10a753a9`;
+  exact-source restore
+  `0xc2ab93448f4567f518d954fcea59c5e7e716356d24ed70ee69a8e530e65c5d0a`.
+- MerchantBond: unauthorized denial
+  `0xf0ef12303f60215042d4b73b0adccf73276dd6d385d0e14fb9896ae2bfb98ed0`;
+  authorized marker
+  `0xcaae601663c29e7b84cdedbfbc54fd159a66842eacf8f78d3e8e92425fecfb4f`;
+  exact-source restore
+  `0x055a36e032895e355ba350739cbd9fb97f3bbaff4255b3b72440f21565322577`.
+- All six transactions reached `FINALIZED`; each authorized/restore transaction
+  had exactly one actual leader receipt with `SUCCESS`, and each unauthorized
+  transaction had an actual leader non-success result. Exact source bytes stayed
+  unchanged after denial; the full linked state snapshot persisted through
+  marker code; exact source and state matched again after restore. Final source
+  SHA-256 values were
+  PriceLedger `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`
+  and MerchantBond
+  `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb`.
+- Live command result: `1 passed, 1 deselected in 366.00s`, exit code `0`.
+  Local regression at the same code revision: `92 passed`. Independent staged
+  diff review reported no blocking finding.
+- No corrected release contract was deployed, no release contract received
+  marker code, and no GitHub push, Vercel deployment, or submission mutation
+  occurred. Release wallet/upgrader selection and explicit per-deployment user
+  confirmation remain mandatory.

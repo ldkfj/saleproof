@@ -24,7 +24,7 @@ success cannot substitute for a failed or missing leader result.
 
 | Field | Required value |
 |---|---|
-| Source freeze commit | `08219a8af36e508587a4fe52ee79037f8be0e97f` |
+| Source freeze commit | `ad056635af3411e2e3aab5fb7f22ecf37e72a530` |
 | Completed evidence-package commit | PENDING; recorded after live evidence is committed |
 | Clean tree verified | PENDING |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
@@ -132,19 +132,26 @@ pair:
 
 | Evidence | PriceLedger rehearsal | MerchantBond rehearsal |
 |---|---|---|
-| Disposable address | PENDING | PENDING |
-| Linked seeded record IDs | product + observation: PENDING | merchant + sale + claim: PENDING |
-| Unauthorized upgrade tx | PENDING | PENDING |
-| Unauthorized result is finalized failure | PENDING | PENDING |
-| Code unchanged after denial | PENDING | PENDING |
-| Authorized marker upgrade tx | PENDING | PENDING |
-| Marker view/state-preservation readback | PENDING | PENDING |
-| Exact-source restore tx | PENDING | PENDING |
-| Restored source SHA/state readback | PENDING | PENDING |
+| Disposable address | `0xe6227B6C8305EEbdd6468cf4206C18e87bFB19f2` | `0xBAd98e2A9f116A330E6Da062397775752eFC60dE` |
+| Linked seeded record IDs | product `1`; `3` observations | merchant `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`; product `1`; sale `1`; claim `1` |
+| Unauthorized upgrade tx | `0xe2e05e55e90b1631ddd5f6c6c4918dc12a7b9980f26c28534f7ce10860f86bd5` | `0xf0ef12303f60215042d4b73b0adccf73276dd6d385d0e14fb9896ae2bfb98ed0` |
+| Unauthorized result is finalized failure | `FINALIZED`; actual leader `NON_SUCCESS` | `FINALIZED`; actual leader `NON_SUCCESS` |
+| Code unchanged after denial | PASS; exact pre-attempt source bytes | PASS; exact pre-attempt source bytes |
+| Authorized marker upgrade tx | `0xe9c63c1f3fed16e9336c8148a5d0db25da7f9fc47520e205514acbcc10a753a9` | `0xcaae601663c29e7b84cdedbfbc54fd159a66842eacf8f78d3e8e92425fecfb4f` |
+| Marker view/state-preservation readback | PASS; marker plus config/count/product/observations matched | PASS; marker plus config/counts/merchant/sale/claim/withdrawables matched |
+| Exact-source restore tx | `0xc2ab93448f4567f518d954fcea59c5e7e716356d24ed70ee69a8e530e65c5d0a` | `0x055a36e032895e355ba350739cbd9fb97f3bbaff4255b3b72440f21565322577` |
+| Restored source SHA/state readback | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`; exact state equality | `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb`; exact state equality |
 
 The executable procedure is
 `genvm_tests/integration/test_saleproof_network.py::test_studionet_root_upgrade_rehearsal`.
-Skipped output does not satisfy this section.
+It passed at source freeze `ad056635af3411e2e3aab5fb7f22ecf37e72a530`
+(`1 passed, 1 deselected`, exit code `0`). The authorized rehearsal upgrader was
+`0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`; the denied caller was
+`0xa52A403Bb4fB8D79625bb8A3481e0e27a2428CC1`. The harness required all four
+release/rehearsal addresses to be nonzero and pairwise distinct, used
+`LATEST_FINAL` for every state read, required exactly one actual leader receipt,
+and restored both contracts before returning success. These disposable
+addresses are not release addresses.
 
 ## Live journey proof matrix
 

@@ -140,7 +140,7 @@ that sale). The gated test performs this sequence for both contracts:
 8. require FINALIZED + `SUCCESS`;
 9. compare deployed source bytes and state with the pre-rehearsal snapshot.
 
-Record all four denied/authorized/restore transaction sequences. A skipped test
+Record all six denied/authorized/restore transactions. A skipped test
 does not satisfy this gate.
 
 ## Release-contract upgrade procedure
