@@ -392,3 +392,109 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
   to the recorded PriceLedger.
 - No release journey, frontend reconfiguration, GitHub push, Vercel deployment,
   or submission mutation occurred.
+
+## 2026-07-29 — Release journey custody incident — BLOCKING; pair superseded
+
+- The release journey started from tracked HEAD
+  `9180606729b59e107a153bac2e1105d610a72457` against PriceLedger
+  `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0` and MerchantBond
+  `0x18e8029FC7e8d217167100C2b9E6983722124E18`. Their verified deployed
+  source SHA-256 values were respectively
+  `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`
+  and
+  `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb`.
+- The first primary claim succeeded in transaction
+  `0xfb3c44c934f656f28c566cbc9ad049c34b8564f58e8b18a272ea584bdbfe5aa1`.
+  A deliberately duplicated payable `file_claim` transaction,
+  `0x6d5d3f894ad38f2fa56a42ca3d13726ece95104f0404cd81d300612f9300abaf`,
+  then finalized with one leader and execution `ERROR:
+  ERR_SALE_ALREADY_CLAIMED`, as expected for contract state.
+- Native-value custody did not revert with that execution error. The watcher
+  balance moved from `10000000000000000010` to `9900000000000000010`
+  wei and the MerchantBond balance moved from `4100000000000000000` to
+  `4200000000000000000` wei, while `claim_count` and
+  `sale.claim_id == 1` remained unchanged. Contract-accounting liabilities
+  were still only `4.1 GEN`, leaving exactly `0.1 GEN` received but not
+  attributable to any storage liability or withdrawal credit.
+- Current Studio runtime source explains the result: submission debits the
+  sender before consensus
+  ([`endpoints.py#L2205-L2241`](https://github.com/genlayerlabs/genlayer-studio/blob/c94072951e483510329670aa427fba3fa6944f45/backend/protocol_rpc/endpoints.py#L2205-L2241));
+  activation credits the target before contract execution
+  ([`base.py#L2039-L2054`](https://github.com/genlayerlabs/genlayer-studio/blob/c94072951e483510329670aa427fba3fa6944f45/backend/consensus/base.py#L2039-L2054));
+  and the refund path refuses to reverse an already credited transfer
+  ([`accounts_manager.py#L133-L184`](https://github.com/genlayerlabs/genlayer-studio/blob/c94072951e483510329670aa427fba3fa6944f45/backend/database_handler/accounts_manager.py#L133-L184)).
+  By contrast, contract storage writes and emitted messages are accepted only
+  on successful execution
+  ([`decisions.py#L398-L440`](https://github.com/genlayerlabs/genlayer-studio/blob/c94072951e483510329670aa427fba3fa6944f45/backend/consensus/decisions.py#L398-L440),
+  [`base.py#L2788-L2865`](https://github.com/genlayerlabs/genlayer-studio/blob/c94072951e483510329670aa427fba3fa6944f45/backend/consensus/base.py#L2788-L2865)).
+- The same custody defect affected every old payable business method:
+  `register_merchant`, `top_up_bond`, `file_claim`, and `appeal`. The journey
+  runner stopped immediately; no later transaction, contract deployment,
+  GitHub push, Vercel deployment, or submission mutation occurred.
+- Ruling: this deployed pair is permanently superseded and cannot be used as
+  release evidence. MerchantBond is being corrected to accept value only
+  through an unconditional `deposit()` credit, followed by nonpayable business
+  calls that consume prepaid credit only after their deterministic guards pass.
+  A fresh pair may be deployed only after complete local verification,
+  independent co-review, and new explicit user confirmation.
+
+## 2026-07-29 — Prepaid-credit custody correction — LOCAL PASS; fresh deployment pending
+
+- Contract correction is recorded in commit `bccf236`: MerchantBond source
+  SHA-256
+  `d7d20db98851ae3958bf810eac45b95bc796f1b942c4e7131992fa957bba753f`.
+  `deposit()` is the sole payable entry point and credits every positive
+  incoming value to the normalized sender. `register_merchant`,
+  `top_up_bond`, `file_claim`, and `appeal` are nonpayable, accept an explicit
+  `u256` amount, preserve their pre-existing deterministic guard order, and
+  consume prepaid credit only immediately before the first success mutation.
+  No storage field or collection layout changed.
+- The client rule is fail-closed and at-most-once per persisted deposit intent:
+  bind network, MerchantBond address, wallet, action, amount, and stage before
+  asking the wallet to send GEN; retain the intent for a missing hash,
+  non-success terminal outcome, or short finalized credit readback; never
+  automatically redeposit. A failed nonpayable business call leaves its credit
+  withdrawable.
+- Contract evidence on the corrected source: `97 passed`; direct GenVM tests
+  `8 passed`; `genvm-lint check` and `genvm-lint typecheck` passed for both
+  contracts; live Studio schema probes returned PriceLedger
+  `ctor params=3, methods=13` and MerchantBond
+  `ctor params=7, methods=22`. PriceLedger remains unchanged at SHA-256
+  `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`.
+- Frontend correction is recorded in commit `a0ce250`. All four funded actions
+  now persist a prepaid state machine, deposit only a finalized-credit deficit,
+  wait for `FINALIZED + SUCCESS` plus sufficient `get_withdrawable` readback,
+  and then submit the business call with zero attached value. Exact core file
+  SHA-256 values are:
+  `prepaid.ts`
+  `df3225e9c4360e33010b5e387499975800278077bf32c79598cdb7ccf4c6f02e`,
+  `prepaid.test.ts`
+  `793626087ce344db6a0d2004ea215c3c1a5ccb910fdd7c0028ead27575d6138b`,
+  and `PrepaidTxAction.tsx`
+  `c8e4ec896266662557b6a24786614291b59801a9bde53c2866a6ea10a59e41bf`.
+  TypeScript passed, the production build transformed 489 modules, Vitest
+  passed `28/28`, and oxlint exited zero with four pre-existing warnings.
+- The opt-in release runner is mirrored identically in the ignored local
+  release paths at SHA-256
+  `aea58bcc75860f80b9522b0cf2aed26452f05a405b2df12af57525e39fc3245d`.
+  Its positive `depositStep` creates an exclusive permanent intent lock and
+  saves `submission_started` before the sole SDK deposit call; ambiguous,
+  non-success, and short-reconciliation outcomes can only resume the same hash
+  and cannot redeposit. All three generic retry helpers now reject nonzero
+  value, so only `depositStep` can send GEN. Both mirrored scripts pass
+  `node --check` and oxlint.
+- Independent correction review was deliberately adversarial. Contract and
+  SPEC reviews approved. Frontend round 1 rejected no-hash resubmission;
+  the exact corrected hashes above passed round 2. Runner round 1 rejected a
+  retryable payable deposit; round 2 verified that fix and then rejected the
+  remaining generic helpers' ability to accept positive value. Codex added
+  explicit nonpayable guards to all three helpers and verified them statically.
+  The required external anonymous co-review of the final exact revision and
+  evidence package is still pending.
+- The incident checkpoint remains preserved at SHA-256
+  `9ddd88620a026179dba0409b0c6dc5fa6cf70a9d3626728f65078258e80030d9`;
+  no v2 release checkpoint or deposit lock exists because the corrected runner
+  has not been executed. No transaction, fresh deployment, push, Vercel
+  deployment, or submission mutation occurred during this correction. The
+  superseded pair remains release-blocked; a fresh Studionet pair still
+  requires independent co-approval and explicit user confirmation.

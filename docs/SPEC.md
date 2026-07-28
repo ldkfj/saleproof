@@ -240,6 +240,15 @@ to cover the requested exact amount
 mutation. If a business operation fails, it carries no attached GEN and all
 prepaid credit remains withdrawable.
 
+Clients must persist the network, MerchantBond address, wallet, action, amount,
+and submission stage before asking the wallet to send a deposit. A positive
+deposit is submitted at most once per persisted intent. A missing transaction
+hash, a terminal result other than `FINALIZED + SUCCESS`, or a successful
+receipt whose finalized credit readback is still short is fail-closed: the
+client retains the intent and never automatically submits another deposit.
+Only a finalized successful deposit with sufficient finalized
+`get_withdrawable` credit may advance to the nonpayable business call.
+
 Raw value-only transfers and value attached to nonpayable methods are not a
 supported protocol entry path. The pinned runner/schema rejects the documented
 `__receive__` special method, so clients must send GEN only through `deposit()`.
