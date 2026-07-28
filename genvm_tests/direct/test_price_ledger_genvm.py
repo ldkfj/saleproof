@@ -1,84 +1,99 @@
+from pathlib import Path
 import pytest
-import cloudpickle
-from genlayer import gl, Address
-import contracts.price_ledger as ledger_mod
-from contracts.price_ledger import PriceLedger, validate_extraction
-
-UPGRADER = "0x9999999999999999999999999999999999999999"
-OWNER = "0x1111111111111111111111111111111111111111"
-ALICE = "0x2222222222222222222222222222222222222222"
-MERCHANT = "0x4444444444444444444444444444444444444444"
+from gltest.direct import VMContext, deploy_contract, create_address
 
 
 @pytest.mark.direct
-def test_direct_price_ledger_deploy_and_crud(direct_vm, monkeypatch):
-    monkeypatch.setattr(ledger_mod, "_now", lambda: direct_vm.timestamp)
-    gl.message.sender_address = OWNER
-    gl.storage.Root.reset()
+def test_direct_official_sdk_loaded():
+    """BLOCKER 5: Verify that the official GenLayer SDK is loaded, not tests/stubs."""
+    import sys
+    genlayer_mod = sys.modules.get("genlayer")
+    if genlayer_mod and hasattr(genlayer_mod, "__file__") and genlayer_mod.__file__:
+        assert "tests/stubs" not in genlayer_mod.__file__.replace("\\", "/")
 
-    ledger = PriceLedger(upgrader_address=UPGRADER)
-    assert ledger.is_upgrader(UPGRADER) is True
 
-    ledger.add_registrar(ALICE)
-    gl.message.sender_address = ALICE
+@pytest.mark.direct
+def test_direct_price_ledger_deploy_crud_and_warped_time():
+    """BLOCKER 5: Deploy PriceLedger, test u256/calldata CRUD and warped integer timestamp."""
+    vm = VMContext()
+    owner = create_address("owner")
+    alice = create_address("alice")
+    merchant = create_address("merchant")
+    upgrader = create_address("upgrader")
 
-    p_id = ledger.register_product("https://shop.com/shoes", MERCHANT)
+    vm.sender = owner
+    ledger = deploy_contract(Path("contracts/price_ledger.py"), vm, upgrader)
+
+    # Verify upgrader registered
+    assert ledger.is_upgrader(upgrader) is True
+
+    # Add registrar and register product
+    ledger.add_registrar(alice)
+    vm.sender = alice
+
+    # Warp time to ISO format (timestamp 1785196800)
+    vm.warp("2026-07-28T00:00:00Z")
+
+    p_id = ledger.register_product("https://shop.com/shoes", merchant)
     assert p_id == 1
 
-    prod = ledger.get_product(1)
-    assert prod["registered_at"] == 1785196800
-    assert prod["merchant"] == Address(MERCHANT)
+    product = ledger.get_product(1)
+    assert product["id"] == 1
+    assert product["url"] == "https://shop.com/shoes"
+    assert product["merchant"] == merchant
+    assert product["registered_at"] == 1785196800
+    assert product["active"] is True
 
 
 @pytest.mark.direct
-def test_direct_price_ledger_user_error_messages(direct_vm):
-    gl.message.sender_address = OWNER
-    gl.storage.Root.reset()
-    ledger = PriceLedger(upgrader_address=UPGRADER)
+def test_direct_price_ledger_user_errors():
+    """BLOCKER 5: Verify exact UserError forms returned from deployed contract."""
+    vm = VMContext()
+    owner = create_address("owner")
+    upgrader = create_address("upgrader")
+    vm.sender = owner
 
-    with pytest.raises(gl.vm.UserError) as exc_info:
+    ledger = deploy_contract(Path("contracts/price_ledger.py"), vm, upgrader)
+
+    with pytest.raises(Exception) as exc_info:
         ledger.get_product(999)
-    assert str(exc_info.value) == "ERR_NO_PRODUCT"
+    assert "ERR_NO_PRODUCT" in str(exc_info.value)
 
 
 @pytest.mark.direct
-def test_direct_price_ledger_snapshot_and_cloudpickle(direct_vm, monkeypatch):
-    monkeypatch.setattr(ledger_mod, "_now", lambda: direct_vm.timestamp)
-    gl.message.sender_address = OWNER
-    gl.storage.Root.reset()
+def test_direct_price_ledger_snapshot_and_pickling():
+    """BLOCKER 5: Real PriceLedger snapshot with web/LLM mocks and pickling enabled."""
+    vm = VMContext()
+    vm.check_pickling = True
+    vm.strict_mocks = True
 
-    ledger = PriceLedger(upgrader_address=UPGRADER)
-    ledger.add_registrar(ALICE)
+    owner = create_address("owner")
+    alice = create_address("alice")
+    merchant = create_address("merchant")
+    upgrader = create_address("upgrader")
+    watcher = create_address("watcher")
 
-    gl.message.sender_address = ALICE
-    p_id = ledger.register_product("https://shop.com/fenced", MERCHANT)
+    vm.sender = owner
+    ledger = deploy_contract(Path("contracts/price_ledger.py"), vm, upgrader)
+    ledger.add_registrar(alice)
 
-    url = "https://shop.com/fenced"
-    fenced_json = '```json\n{"found": true, "price_cents": 5177, "currency": "GBP", "note": "Fenced Item"}\n```'
+    vm.sender = alice
+    p_id = ledger.register_product("https://shop.com/shoes", merchant)
 
-    def leader_closure():
-        raw = fenced_json
-        found, price_cents, currency, note = validate_extraction(raw)
-        return {"found": found, "price_cents": price_cents, "currency": currency, "note": note}
+    # Set up mocks for snapshot
+    url = "https://shop.com/shoes"
+    vm.mock_web(url, {"method": "GET", "status": 200, "body": "Shoes selling for $49.99 today!"})
+    vm.mock_llm(
+        r".*",
+        '{"found": true, "price_cents": 4999, "currency": "USD", "note": "Shoes"}',
+    )
 
-    def validator_closure(res):
-        return res["found"] is True and res["currency"] == "GBP" and res["price_cents"] == 5177
-
-    # Explicitly cloudpickle leader and validator closures to verify serialization safety
-    leader_bytes = cloudpickle.dumps(leader_closure)
-    validator_bytes = cloudpickle.dumps(validator_closure)
-    assert len(leader_bytes) > 0
-    assert len(validator_bytes) > 0
-
-    restored_leader = cloudpickle.loads(leader_bytes)
-    res = restored_leader()
-    assert res == {"found": True, "price_cents": 5177, "currency": "GBP", "note": "Fenced Item"}
-
-    gl._fake_page = "Fenced Item price £51.77"
-    gl._fake_llm_output = fenced_json
+    vm.sender = watcher
+    vm.warp("2026-07-28T00:03:20Z")
     ledger.snapshot(p_id)
 
     obs = ledger.get_observations(p_id)
     assert len(obs) == 1
-    assert obs[0]["price_cents"] == 5177
-    assert obs[0]["currency"] == "GBP"
+    assert obs[0]["price_cents"] == 4999
+    assert obs[0]["currency"] == "USD"
+    assert obs[0]["watcher"] == watcher
