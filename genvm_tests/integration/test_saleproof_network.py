@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pytest
-
+from genlayer_py.types import TransactionHashVariant
 
 ROOT = Path(__file__).resolve().parents[2]
 LEDGER_SOURCE = ROOT / "contracts" / "price_ledger.py"
@@ -23,7 +23,7 @@ def _required_address(name: str) -> str:
     if len(value) != 42 or not value.startswith("0x"):
         pytest.fail(f"{name} must contain a real 20-byte contract address.")
     try:
-        numeric = int(value[2:], 16)
+        numeric = int(value, 0)
     except ValueError:
         pytest.fail(f"{name} must contain a hexadecimal contract address.")
     if numeric == 0:
@@ -44,7 +44,7 @@ def _required_positive_int(name: str) -> int:
 
 def _required_private_key(name: str) -> str:
     value = os.environ.get(name, "")
-    payload = value[2:] if value.startswith("0x") else value
+    payload = value.removeprefix("0x")
     if len(payload) != 64:
         pytest.fail(f"{name} must contain one 32-byte private key.")
     try:
@@ -60,10 +60,36 @@ def _assert_studionet(client) -> None:
 
 
 def _deployed_source(client, address: str) -> str:
+    # Studionet rejects the generic-node {address, status} request. Couple
+    # this legacy read to FINALIZED leader-success and no concurrent upgrade.
     response = client.provider.make_request("gen_getContractCode", [address])
     encoded = response.get("result")
     assert isinstance(encoded, str) and encoded
     return base64.b64decode(encoded, validate=True).decode("utf-8")
+
+
+def _finalized_leader_succeeded(transaction: dict) -> bool:
+    if transaction.get("status_name") != "FINALIZED":
+        pytest.fail("Transaction evidence is not FINALIZED.")
+    consensus = transaction.get("consensus_data")
+    if not isinstance(consensus, dict):
+        pytest.fail("Finalized transaction evidence has no consensus_data object.")
+    receipts = consensus.get("leader_receipt")
+    if not isinstance(receipts, list):
+        pytest.fail("Finalized transaction evidence has no receipt list.")
+    leaders = [
+        receipt
+        for receipt in receipts
+        if isinstance(receipt, dict) and receipt.get("mode") == "leader"
+    ]
+    if len(leaders) != 1:
+        pytest.fail(
+            "Transaction evidence must contain exactly one actual leader receipt."
+        )
+    execution_result = leaders[0].get("execution_result")
+    if not isinstance(execution_result, str):
+        pytest.fail("The actual leader receipt has no execution_result.")
+    return execution_result == "SUCCESS"
 
 
 def _sha256(source: str) -> str:
@@ -82,16 +108,24 @@ def _marker_source(source: str, marker: str) -> str:
 
 
 def _ledger_rehearsal_state(contract, product_id: int) -> dict:
-    product_count = contract.get_product_count().call()
+    product_count = contract.get_product_count().call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
     if int(product_count) < product_id:
         pytest.fail("The rehearsal product ID is outside the populated ledger.")
-    observations = contract.get_observations(args=[product_id]).call()
+    observations = contract.get_observations(args=[product_id]).call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
     if len(observations) < 1:
         pytest.fail("The rehearsal product must have at least one observation.")
     return {
-        "config": contract.get_config().call(),
+        "config": contract.get_config().call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        ),
         "product_count": product_count,
-        "product": contract.get_product(args=[product_id]).call(),
+        "product": contract.get_product(args=[product_id]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        ),
         "observations": observations,
     }
 
@@ -103,14 +137,22 @@ def _bond_rehearsal_state(
     sale_id: int,
     claim_id: int,
 ) -> dict:
-    counts = contract.get_counts().call()
+    counts = contract.get_counts().call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
     if int(counts["sale_count"]) < sale_id:
         pytest.fail("The rehearsal sale ID is outside the populated bond contract.")
     if int(counts["claim_count"]) < claim_id:
         pytest.fail("The rehearsal claim ID is outside the populated bond contract.")
-    merchant = contract.get_merchant(args=[merchant_address]).call()
-    sale = contract.get_sale(args=[sale_id]).call()
-    claim = contract.get_claim(args=[claim_id]).call()
+    merchant = contract.get_merchant(args=[merchant_address]).call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
+    sale = contract.get_sale(args=[sale_id]).call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
+    claim = contract.get_claim(args=[claim_id]).call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
     if str(merchant["addr"]).lower() != merchant_address.lower():
         pytest.fail("The rehearsal merchant record does not match its address.")
     if str(sale["merchant"]).lower() != merchant_address.lower():
@@ -121,17 +163,19 @@ def _bond_rehearsal_state(
         pytest.fail("The rehearsal sale and claim do not reference each other.")
     buyer_address = str(claim["buyer"])
     return {
-        "config": contract.get_config().call(),
+        "config": contract.get_config().call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        ),
         "counts": counts,
         "merchant": merchant,
         "sale": sale,
         "claim": claim,
         "merchant_withdrawable": contract.get_withdrawable(
             args=[merchant_address]
-        ).call(),
-        "buyer_withdrawable": contract.get_withdrawable(
-            args=[buyer_address]
-        ).call(),
+        ).call(transaction_hash_variant=TransactionHashVariant.LATEST_FINAL),
+        "buyer_withdrawable": contract.get_withdrawable(args=[buyer_address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        ),
     }
 
 
@@ -155,21 +199,40 @@ def test_corrected_studionet_source_and_config():
     assert _sha256(_deployed_source(client, ledger_address)) == _sha256(ledger_source)
     assert _sha256(_deployed_source(client, bond_address)) == _sha256(bond_source)
 
-    ledger = get_contract_factory(
-        contract_file_path=LEDGER_SOURCE
-    ).build_contract(ledger_address)
+    ledger = get_contract_factory(contract_file_path=LEDGER_SOURCE).build_contract(
+        ledger_address
+    )
     bond = get_contract_factory(contract_file_path=BOND_SOURCE).build_contract(
         bond_address
     )
 
-    ledger_config = ledger.get_config().call()
-    bond_config = bond.get_config().call()
+    ledger_config = ledger.get_config().call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
+    bond_config = bond.get_config().call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
     assert str(ledger_config["owner"]).lower() == owner_address.lower()
     assert str(bond_config["owner"]).lower() == owner_address.lower()
     assert str(bond_config["ledger"]).lower() == ledger_address.lower()
-    assert ledger.is_upgrader(args=[upgrader_address]).call() is True
-    assert bond.is_upgrader(args=[upgrader_address]).call() is True
-    assert ledger.is_registrar(args=[bond_address]).call() is True
+    assert (
+        ledger.is_upgrader(args=[upgrader_address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        is True
+    )
+    assert (
+        bond.is_upgrader(args=[upgrader_address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        is True
+    )
+    assert (
+        ledger.is_registrar(args=[bond_address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        is True
+    )
 
 
 def _rehearse_upgrade(
@@ -183,7 +246,6 @@ def _rehearse_upgrade(
     marker: str,
 ) -> None:
     from genlayer_py.types import TransactionStatus
-    from gltest.assertions import tx_execution_failed, tx_execution_succeeded
     from gltest.contracts import ContractFactory
 
     original_source = factory.contract_code
@@ -197,13 +259,13 @@ def _rehearse_upgrade(
     denied = unauthorized_contract.upgrade(
         args=[rehearsal_source.encode("utf-8")]
     ).transact(wait_transaction_status=TransactionStatus.FINALIZED)
-    assert tx_execution_failed(denied)
+    assert not _finalized_leader_succeeded(denied)
     assert _deployed_source(client, address) == before_code
 
     rehearsed = contract.upgrade(args=[rehearsal_source.encode("utf-8")]).transact(
         wait_transaction_status=TransactionStatus.FINALIZED
     )
-    assert tx_execution_succeeded(rehearsed)
+    assert _finalized_leader_succeeded(rehearsed)
     assert _deployed_source(client, address) == rehearsal_source
 
     rehearsal_factory = ContractFactory(
@@ -211,13 +273,18 @@ def _rehearse_upgrade(
         contract_code=rehearsal_source,
     )
     rehearsed_contract = rehearsal_factory.build_contract(address, account=authorized)
-    assert rehearsed_contract.recovery_rehearsal_marker().call() == marker
+    assert (
+        rehearsed_contract.recovery_rehearsal_marker().call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        == marker
+    )
     assert state_reader(rehearsed_contract) == before_state
 
     restored = rehearsed_contract.upgrade(
         args=[original_source.encode("utf-8")]
     ).transact(wait_transaction_status=TransactionStatus.FINALIZED)
-    assert tx_execution_succeeded(restored)
+    assert _finalized_leader_succeeded(restored)
     assert _deployed_source(client, address) == original_source
     restored_contract = factory.build_contract(address, account=authorized)
     assert state_reader(restored_contract) == before_state
@@ -230,13 +297,9 @@ def test_studionet_root_upgrade_rehearsal():
 
     from gltest import create_account, get_contract_factory, get_gl_client
 
-    ledger_address = _required_address(
-        "SALEPROOF_STUDIONET_REHEARSAL_LEDGER_ADDRESS"
-    )
+    ledger_address = _required_address("SALEPROOF_STUDIONET_REHEARSAL_LEDGER_ADDRESS")
     bond_address = _required_address("SALEPROOF_STUDIONET_REHEARSAL_BOND_ADDRESS")
-    release_ledger_address = _required_address(
-        "SALEPROOF_STUDIONET_LEDGER_ADDRESS"
-    )
+    release_ledger_address = _required_address("SALEPROOF_STUDIONET_LEDGER_ADDRESS")
     release_bond_address = _required_address("SALEPROOF_STUDIONET_BOND_ADDRESS")
     all_targets = {
         ledger_address.lower(),
@@ -252,9 +315,7 @@ def test_studionet_root_upgrade_rehearsal():
     rehearsal_merchant_address = _required_address(
         "SALEPROOF_STUDIONET_REHEARSAL_MERCHANT_ADDRESS"
     )
-    rehearsal_sale_id = _required_positive_int(
-        "SALEPROOF_STUDIONET_REHEARSAL_SALE_ID"
-    )
+    rehearsal_sale_id = _required_positive_int("SALEPROOF_STUDIONET_REHEARSAL_SALE_ID")
     rehearsal_claim_id = _required_positive_int(
         "SALEPROOF_STUDIONET_REHEARSAL_CLAIM_ID"
     )
@@ -274,13 +335,37 @@ def test_studionet_root_upgrade_rehearsal():
     bond_factory = get_contract_factory(contract_file_path=BOND_SOURCE)
     ledger = ledger_factory.build_contract(ledger_address)
     bond = bond_factory.build_contract(bond_address)
-    bond_config = bond.get_config().call()
+    bond_config = bond.get_config().call(
+        transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+    )
     if str(bond_config["ledger"]).lower() != ledger_address.lower():
-        pytest.fail("The rehearsal MerchantBond must reference the rehearsal PriceLedger.")
-    assert ledger.is_upgrader(args=[authorized.address]).call() is True
-    assert bond.is_upgrader(args=[authorized.address]).call() is True
-    assert ledger.is_upgrader(args=[unauthorized.address]).call() is False
-    assert bond.is_upgrader(args=[unauthorized.address]).call() is False
+        pytest.fail(
+            "The rehearsal MerchantBond must reference the rehearsal PriceLedger."
+        )
+    assert (
+        ledger.is_upgrader(args=[authorized.address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        is True
+    )
+    assert (
+        bond.is_upgrader(args=[authorized.address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        is True
+    )
+    assert (
+        ledger.is_upgrader(args=[unauthorized.address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        is False
+    )
+    assert (
+        bond.is_upgrader(args=[unauthorized.address]).call(
+            transaction_hash_variant=TransactionHashVariant.LATEST_FINAL
+        )
+        is False
+    )
 
     _rehearse_upgrade(
         client=client,

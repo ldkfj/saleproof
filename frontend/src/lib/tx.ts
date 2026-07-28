@@ -91,12 +91,14 @@ function leaderReceipts(transaction: GenLayerTransaction): LeaderReceipt[] {
 }
 
 export function isExecutionSuccess(transaction: GenLayerTransaction): boolean {
-  if (transaction.txExecutionResultName === "FINISHED_WITH_RETURN") return true;
-  return leaderReceipts(transaction).some((receipt) => receipt.execution_result === "SUCCESS");
+  const leader = leaderReceipts(transaction).find((receipt) => receipt.mode === "leader");
+  return leader?.execution_result === "SUCCESS";
 }
 
 export function transactionFailure(transaction: GenLayerTransaction): TransactionFailure {
-  const failedReceipts = leaderReceipts(transaction).filter(
+  const receipts = leaderReceipts(transaction);
+  const leader = receipts.find((receipt) => receipt.mode === "leader");
+  const failedReceipts = (leader ? [leader] : receipts).filter(
     (receipt) =>
       receipt.execution_result !== "SUCCESS" &&
       !JSON.stringify(receipt).toLowerCase().includes('"payload":"idle"'),

@@ -1,4 +1,5 @@
 import { createClient, chains } from "genlayer-js";
+import { TransactionHashVariant } from "genlayer-js/types";
 
 const NETWORK = process.env.VITE_GL_NETWORK ?? "studionet";
 const LEDGER_ADDRESS = process.env.VITE_LEDGER_ADDRESS;
@@ -61,9 +62,19 @@ function expect(label, actual, expected) {
 }
 
 const readLedger = (functionName, args) =>
-  client.readContract({ address: ledgerAddress, functionName, args });
+  client.readContract({
+    address: ledgerAddress,
+    functionName,
+    args,
+    transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
+  });
 const readBond = (functionName, args) =>
-  client.readContract({ address: bondAddress, functionName, args });
+  client.readContract({
+    address: bondAddress,
+    functionName,
+    args,
+    transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
+  });
 
 const [ledgerConfig, bondConfig, product, observations, sale, claim] =
   await Promise.all([

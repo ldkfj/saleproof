@@ -17,12 +17,50 @@ describe("transaction helpers", () => {
         consensus_data: {
           final: true,
           leader_receipt: [
-            { execution_result: "SUCCESS" },
-            { execution_result: "ERROR", result: { payload: "idle" } },
+            { mode: "leader", execution_result: "SUCCESS" },
+            { mode: "validator", execution_result: "ERROR", result: { payload: "idle" } },
           ] as never,
         },
       }),
     ).toBe(true);
+  });
+
+  it("rejects a leader error even when a validator reports success", () => {
+    expect(
+      isExecutionSuccess({
+        consensus_data: {
+          final: true,
+          leader_receipt: [
+            { mode: "leader", execution_result: "ERROR" },
+            { mode: "validator", execution_result: "SUCCESS" },
+          ] as never,
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("requires an actual leader success receipt", () => {
+    expect(
+      isExecutionSuccess({ txExecutionResultName: "FINISHED_WITH_RETURN" as never }),
+    ).toBe(false);
+    expect(
+      isExecutionSuccess({
+        txExecutionResultName: "FINISHED_WITH_RETURN" as never,
+        consensus_data: {
+          final: true,
+          leader_receipt: [{ mode: "validator", execution_result: "SUCCESS" }] as never,
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isExecutionSuccess({
+        txExecutionResultName: "FINISHED_WITH_RETURN" as never,
+        consensus_data: {
+          final: true,
+          leader_receipt: [{ mode: "leader", execution_result: "ERROR" }] as never,
+        },
+      }),
+    ).toBe(false);
   });
 
   it("extracts a contract error code and human message", () => {
@@ -31,6 +69,7 @@ describe("transaction helpers", () => {
         final: true,
         leader_receipt: [
           {
+            mode: "leader",
             execution_result: "ERROR",
             result: { status: "contract_error", payload: "Exception: ERR_COOLDOWN" },
           },
@@ -47,6 +86,7 @@ describe("transaction helpers", () => {
         final: true,
         leader_receipt: [
           {
+            mode: "leader",
             execution_result: "ERROR",
             result: {
               status: "contract_error",

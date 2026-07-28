@@ -1,3 +1,4 @@
+import { TransactionHashVariant } from "genlayer-js/types";
 import { client, LEDGER_ADDRESS, BOND_ADDRESS } from "./chain";
 
 export interface Product {
@@ -88,6 +89,7 @@ export const ledgerContract = {
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "get_config",
       args: [],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       owner: String(cfg.owner || ""),
@@ -101,6 +103,7 @@ export const ledgerContract = {
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "get_product_count",
       args: [],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return num(res);
   },
@@ -110,6 +113,7 @@ export const ledgerContract = {
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "get_product",
       args: [productId],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       id: num(p.id),
@@ -125,6 +129,7 @@ export const ledgerContract = {
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "get_observations",
       args: [productId],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     const list = Array.isArray(res) ? res : [];
     return list.map((o: any) => ({
@@ -142,6 +147,7 @@ export const ledgerContract = {
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "get_recent_observations",
       args: [productId, k],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     const list = Array.isArray(res) ? res : [];
     return list.map((o: any) => ({
@@ -159,6 +165,7 @@ export const ledgerContract = {
       address: LEDGER_ADDRESS as `0x${string}`,
       functionName: "is_registrar",
       args: [addr],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return Boolean(res);
   },
@@ -170,6 +177,7 @@ export const bondContract = {
       address: BOND_ADDRESS as `0x${string}`,
       functionName: "get_counts",
       args: [],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       sale_count: num(res?.sale_count),
@@ -182,6 +190,7 @@ export const bondContract = {
       address: BOND_ADDRESS as `0x${string}`,
       functionName: "get_sale",
       args: [saleId],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       id: num(s.id),
@@ -200,6 +209,7 @@ export const bondContract = {
       address: BOND_ADDRESS as `0x${string}`,
       functionName: "get_claim",
       args: [claimId],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       id: num(c.id),
@@ -223,6 +233,7 @@ export const bondContract = {
       address: BOND_ADDRESS as `0x${string}`,
       functionName: "get_merchant",
       args: [addr],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       addr: String(m.addr || addr),
@@ -239,6 +250,7 @@ export const bondContract = {
       address: BOND_ADDRESS as `0x${string}`,
       functionName: "get_config",
       args: [],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       owner: String(cfg.owner || ""),
@@ -257,6 +269,7 @@ export const bondContract = {
       address: BOND_ADDRESS as `0x${string}`,
       functionName: "get_withdrawable",
       args: [addr],
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     return {
       addr: String(w.addr || addr),
