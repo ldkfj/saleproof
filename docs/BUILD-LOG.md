@@ -324,3 +324,26 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
   marker code, and no GitHub push, Vercel deployment, or submission mutation
   occurred. Release wallet/upgrader selection and explicit per-deployment user
   confirmation remain mandatory.
+
+## 2026-07-28 — Corrected release PriceLedger deployment — LIVE PASS; PAIR INCOMPLETE
+
+- The user selected and explicitly confirmed
+  `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` as both deployment
+  owner and Root upgrader for PriceLedger. Immediately before submission,
+  Codex derived that address from the configured local key, verified Studionet
+  chain ID `61999`, a clean tree at
+  `c89da7d8eff9c562f05a4ad9721bc6ae51f2c333`, and source SHA-256
+  `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`.
+- PriceLedger deployment transaction
+  `0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc`
+  reached `FINALIZED` with actual leader execution `SUCCESS`, creating
+  `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0`.
+- An independent finalized read verified exact deployed-source parity at the
+  same SHA-256, owner
+  `0x666d6a7dca1319cadcc7fb6b10dab55cd8e128dc`, snapshot cooldown
+  `60`, observation cap `500`, and
+  `is_upgrader(0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc) == true`.
+- No MerchantBond release deployment, registrar write, release journey,
+  frontend reconfiguration, GitHub push, Vercel deployment, or submission
+  mutation occurred. Each remains behind its applicable identity,
+  verification, and explicit-confirmation gate.

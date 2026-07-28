@@ -2,7 +2,7 @@
 
 ## Current status
 
-**No corrected release deployment is recorded yet.**
+**Corrected PriceLedger deployed; MerchantBond and pair wiring remain pending.**
 
 The active manifest must remain incomplete until every required transaction is
 FINALIZED and its `mode="leader"` receipt has execution result `SUCCESS`, every
@@ -26,7 +26,7 @@ success cannot substitute for a failed or missing leader result.
 |---|---|
 | Source freeze commit | `ad056635af3411e2e3aab5fb7f22ecf37e72a530` |
 | Completed evidence-package commit | PENDING; recorded after live evidence is committed |
-| Clean tree verified | PENDING |
+| Clean tree verified | YES immediately before PriceLedger deployment at `c89da7d8eff9c562f05a4ad9721bc6ae51f2c333` |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
 | MerchantBond SHA-256 | `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb` |
 | Runner | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
@@ -44,11 +44,11 @@ invalidates those approvals.
 
 | Field | Required value |
 |---|---|
-| User-selected deployment wallet / owner | PENDING USER SELECTION |
-| Verified active deployment address | PENDING |
-| User-selected Root upgrader wallet | PENDING USER SELECTION |
-| Verified active Root upgrader address | PENDING |
-| Explicit confirmation for PriceLedger deployment | PENDING |
+| User-selected deployment wallet / owner | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
+| Verified active deployment address | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` derived from the configured key immediately before deployment |
+| User-selected Root upgrader wallet | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
+| Verified active Root upgrader address | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
+| Explicit confirmation for PriceLedger deployment | YES — user replied “Xác nhận” after the exact wallet, network, constructor values, and source hash were presented |
 | Explicit confirmation for MerchantBond deployment | PENDING |
 | Explicit confirmation for registrar write | PENDING |
 
@@ -60,17 +60,17 @@ confirmation before each release network write.
 
 | Field | PriceLedger | MerchantBond |
 |---|---|---|
-| Address | PENDING | PENDING |
-| Deployment transaction | PENDING | PENDING |
-| Sender / owner | PENDING | PENDING |
-| Registered Root upgrader | PENDING | PENDING |
-| Final transaction status | PENDING | PENDING |
-| Execution result | PENDING | PENDING |
-| Explorer link | PENDING | PENDING |
-| `gen_getContractCode` SHA-256 | PENDING | PENDING |
-| Local/deployed source parity | PENDING | PENDING |
-| Coupled FINALIZED leader-success receipt / no intervening upgrade | PENDING | PENDING |
-| Config readback | PENDING | PENDING |
+| Address | `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0` | PENDING |
+| Deployment transaction | `0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc` | PENDING |
+| Sender / owner | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PENDING |
+| Registered Root upgrader | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PENDING |
+| Final transaction status | `FINALIZED` | PENDING |
+| Execution result | actual leader `SUCCESS` | PENDING |
+| Explorer link | https://explorer-studio.genlayer.com/transactions/0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc | PENDING |
+| `gen_getContractCode` SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` | PENDING |
+| Local/deployed source parity | PASS — exact UTF-8 bytes | PENDING |
+| Coupled FINALIZED leader-success receipt / no intervening upgrade | PASS — code/config read immediately after the recorded deployment receipt | PENDING |
+| Config readback | owner `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`; cooldown `60`; cap `500`; `is_upgrader == true` | PENDING |
 
 ### Constructor arguments
 
@@ -80,7 +80,7 @@ pending until deployment):
 PriceLedger:
 
 ```text
-upgrader_address: PENDING USER-SELECTION / VERIFIED ADDRESS
+upgrader_address: 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc
 snapshot_cooldown_s: 60
 max_observations: 500
 ```
@@ -108,9 +108,9 @@ record before this section is complete.
 | MerchantBond config points to the recorded PriceLedger | PENDING | PENDING |
 | `PriceLedger.add_registrar(MerchantBond)` | PENDING | PENDING |
 | `PriceLedger.is_registrar(MerchantBond) == true` | PENDING | PENDING |
-| PriceLedger owner readback | PENDING | PENDING |
+| PriceLedger owner readback | `LATEST_FINAL get_config.owner == 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` | PASS |
 | MerchantBond owner readback | PENDING | PENDING |
-| Root upgrader membership on both contracts | PENDING | PENDING |
+| Root upgrader membership on both contracts | PriceLedger `is_upgrader(0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc) == true`; MerchantBond pending | PARTIAL |
 
 On current Studionet, `gen_getContractCode` must use the legacy `[address]`
 request shape. Its parity result is accepted only when coupled to the recorded
