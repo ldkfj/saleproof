@@ -8,6 +8,7 @@ import { ActiveBadge } from "../components/Badge";
 import { CardSkeleton } from "../components/Skeleton";
 import { centsToPrice, shortAddr, timeAgo } from "../lib/format";
 import { BOND_ADDRESS, GL_NETWORK_LABEL, LEDGER_ADDRESS } from "../lib/chain";
+import { refreshUntilObservationCount } from "../lib/product";
 import { useWallet } from "../lib/wallet";
 import { useProtocolData } from "../lib/store";
 
@@ -29,11 +30,11 @@ export const ProductDetail: React.FC = () => {
   const snapshotCooldownS =
     ledgerConfig?.snapshot_cooldown_s ?? FALLBACK_SNAPSHOT_COOLDOWN_S;
 
-  const loadProduct = useCallback(async () => {
+  const loadProduct = useCallback(async (): Promise<number | null> => {
     if (!productId || isNaN(productId)) {
       setError("Invalid Product ID.");
       setLoading(false);
-      return;
+      return null;
     }
 
     setError(null);
@@ -45,9 +46,11 @@ export const ProductDetail: React.FC = () => {
       ]);
       setProduct(nextProduct);
       setObservations(nextObservations);
+      return nextObservations.length;
     } catch (nextError) {
       console.error("Error fetching product detail:", nextError);
       setError("Product not found (ERR_NO_PRODUCT).");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -171,7 +174,15 @@ export const ProductDetail: React.FC = () => {
               args: [product.id],
             })}
             onSuccess={async () => {
-              await loadProduct();
+              const refreshed = await refreshUntilObservationCount(
+                loadProduct,
+                observations.length + 1,
+              );
+              if (!refreshed) {
+                console.warn(
+                  "Snapshot finalized, but the appended observation is not visible yet.",
+                );
+              }
               await refresh();
             }}
             disabled={!product.active || cooldownRemaining > 0}
