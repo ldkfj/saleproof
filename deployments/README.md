@@ -2,8 +2,8 @@
 
 ## Current status
 
-**LIVE EVIDENCE PASS; final exact-revision co-review, public GitHub update, and
-Vercel production update are pending.**
+**PUBLIC GITHUB + VERCEL PASS; final exact-revision anonymous co-review is
+pending.**
 
 The release contracts were deployed from exact pre-deploy commit
 `79001612d6126e809c2c17c47418bede1c8e64f4`, which received both Codex and
@@ -13,9 +13,12 @@ journeys, custody reconciliation, and local frontend render/write evidence are
 complete.
 
 The live write check exposed an eventually-consistent post-finalization UI
-refresh defect. The correction and its evidence scripts change the tracked
-revision, so the final package must receive another anonymous co-review before
-GitHub or Vercel is updated.
+refresh defect. Its correction and evidence package received anonymous
+`POST_DEPLOY_TEST` approval on exact commit
+`6054c849cdf7e149eb278c63f5c284c56ce412ad`. The same source tree is now public
+on GitHub and deployed to Vercel with the current Studionet pair. The remaining
+gate is anonymous `POST_GITHUB_VERCEL_FINAL` review of the exact final evidence
+revision.
 
 ## Canonical network
 
@@ -43,7 +46,9 @@ evidence for this project.
 | User-selected deployment owner and Root upgrader | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
 | Pre-deploy Codex verdict | APPROVED |
 | Pre-deploy anonymous co-review verdict | APPROVED on exact commit `7900161` |
-| Final post-live anonymous co-review | PENDING on the new evidence-package commit |
+| Post-live anonymous co-review | APPROVED on exact commit `6054c849cdf7e149eb278c63f5c284c56ce412ad` |
+| Public source-tree commit | `3d4c7a7287b46133c63db47f44b53885d357606c` (history-only merge; zero tree diff from `6054c84`) |
+| Final post-GitHub/Vercel anonymous co-review | PENDING on this final evidence package |
 
 The selected wallet was derived from the configured local key without exposing
 the key. The user explicitly authorized the deployments and test transactions.
@@ -225,6 +230,49 @@ Screenshots:
 
 - `docs/screenshots/current/06-write-pending.png`
 - `docs/screenshots/current/07-write-final.png`
+- `docs/screenshots/current/08-public-production-overview.png` — SHA-256
+  `cb9ce7a7ca4c0075ab8158eedbb51463753f8ba51553bc9b5fa793b903034b9c`
+
+## Public GitHub and Vercel release
+
+| Field | Verified value |
+|---|---|
+| GitHub account / repository | `ldkfj` / [ldkfj/saleproof](https://github.com/ldkfj/saleproof) |
+| GitHub branch | `master` |
+| Public commit count after this evidence commit | `112` |
+| Vercel user / team | `hongcham819-3406` / `gam` (`gam9`) |
+| Vercel project | `gam9/saleproof`; root `frontend`; framework Vite |
+| Production deployment | `dpl_Frb4LzmiYSSSCjQFDmt6MbibyXEo` / `READY` |
+| Immutable deployment URL | `https://saleproof-42efboiqb-gam9.vercel.app` |
+| Public production alias | [saleproof.vercel.app](https://saleproof.vercel.app) |
+| Production network | `VITE_GL_NETWORK=studionet` |
+| Production ledger | `VITE_LEDGER_ADDRESS=0xE14023EF575ce85Cd0a709DA3997483315BaEB40` |
+| Production bond | `VITE_BOND_ADDRESS=0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b` |
+| Remote build | PASS; TypeScript + Vite, 494 modules |
+| Public smoke check | PASS; `books.toscrape.com`, product #1 `6 snapshots / £51.77`, claim #1 `SETTLED / INFLATED REF` |
+
+The public Overview also displayed claim #2 as `SETTLED / GENUINE` during a
+complete read. Studionet temporarily returned capacity error `-32006` during
+verification, so some aggregate refreshes omitted individual rows until the
+next read. The independent bounded-retry chain verifier passed the exact pair;
+this RPC-capacity behavior did not change finalized contract state.
+
+## Final release scorecard
+
+| Category | Result |
+|---|---|
+| Contract source and deployed-code parity | PASS |
+| Studionet addresses and finalized deployment receipts | PASS |
+| Constructor config, Root membership, and registrar wiring | PASS |
+| Disposable authorized/unauthorized Root recovery rehearsal | PASS |
+| Primary judgment, appeal, guard, exit, and pull-payment journeys | PASS |
+| Deterministic settlement and custody conservation | PASS |
+| Contract, Direct GenVM, schema, and network verification | PASS |
+| Frontend typecheck, build, unit tests, lint, and five-route render | PASS |
+| Real finalized UI write and eventual-read correction | PASS |
+| Public GitHub history and presentation boundary | PASS |
+| Production Vercel environment, build, alias, and smoke check | PASS |
+| Final anonymous `POST_GITHUB_VERCEL_FINAL` review | PENDING |
 
 ## Remaining release gates
 
@@ -236,9 +284,10 @@ Screenshots:
 | Primary, appeal, guard, exit, settlement, and custody journeys | PASS |
 | Local frontend typecheck/build/tests/lint | PASS; 10 files / 43 tests |
 | Fresh render/write evidence | PASS |
-| Final anonymous co-review on exact tracked revision | PENDING |
-| GitHub Presentation Gate and public push | PENDING |
-| Production Vercel environment/update/smoke check | PENDING |
+| Post-live anonymous co-review on `6054c84` | APPROVED |
+| GitHub Presentation Gate and public push | PASS |
+| Production Vercel environment/update/smoke check | PASS |
+| Final anonymous co-review on exact post-release revision | PENDING |
 
 ## Historical evidence - superseded, never current
 

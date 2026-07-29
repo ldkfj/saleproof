@@ -9,8 +9,9 @@ discount is supported by an independently recorded on-chain price history.
 - [MerchantBond on Studionet](https://explorer-studio.genlayer.com/address/0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b)
 - [Release manifest and transaction evidence](deployments/README.md)
 - [Current render/write screenshots](docs/screenshots/current/)
-- Production web app: pending the final exact-revision review and Vercel
-  environment update; no stale deployment is presented as current.
+- [Production web app](https://saleproof.vercel.app) — live on Vercel with the
+  current Studionet release pair.
+- [Public GitHub repository](https://github.com/ldkfj/saleproof)
 
 Both contracts were deployed from dual-approved commit `7900161`. Their
 deployed source, configuration, registrar wiring, recovery rehearsal, primary
@@ -194,6 +195,7 @@ Current results:
 | Oxlint | exit 0; three known Fast Refresh warnings |
 | Five-route render evidence | PASS |
 | Real UI snapshot write | PASS; `5 -> 6` observations without reload |
+| Public Vercel smoke check | PASS; books row, `£51.77`, `SETTLED`, `INFLATED REF` |
 
 The opt-in network and browser scripts fail closed unless explicit release
 addresses and opt-in flags are supplied. A default skip, an old screenshot, a
@@ -246,5 +248,5 @@ new disposable Root rehearsal before a replacement pair is accepted.
 - Product-page extraction depends on validator web reachability and page
   stability; unreadable pages are recorded as `ok=false`.
 - The Root upgrader is one user-controlled wallet.
-- The current production Vercel site and public GitHub revision remain pending
-  the final exact-revision co-review; no stale URL is presented as current.
+- Studionet RPC capacity exhaustion can make an aggregate table temporarily
+  incomplete; refreshing after capacity recovers restores the finalized rows.

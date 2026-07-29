@@ -5,7 +5,7 @@ tags:
   - spec
   - genlayer
   - saleproof
-status: live_evidence_pass_final_package_review_pending
+status: public_release_pass_final_dual_review_pending
 ---
 
 # SaleProof — Specification v1.1
@@ -13,8 +13,9 @@ status: live_evidence_pass_final_package_review_pending
 > Status: the corrected contract source passed pre-deploy dual review and is
 > deployed on Studionet with source/config parity, recovery rehearsal, complete
 > live journeys, custody reconciliation, and frontend render/write evidence.
-> The final tracked evidence package still requires exact-revision co-review
-> before the public GitHub and Vercel update.
+> The public GitHub repository and Vercel production app now use the current
+> release package. Final completion still requires anonymous co-review of the
+> exact post-GitHub/Vercel evidence revision.
 >
 > Current release network: Studionet only.
 

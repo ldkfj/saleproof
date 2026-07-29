@@ -638,3 +638,52 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
   assets, and superseded screenshot set were removed from the public boundary.
   The seven current screenshots, final SPEC, recovery runbook, build log, and
   one release manifest remain. Deleted material is recoverable from git history.
+
+## 2026-07-29 -- Anonymous POST_DEPLOY_TEST co-review -- APPROVED
+
+- The anonymous co-review AI audited exact clean commit
+  `6054c849cdf7e149eb278c63f5c284c56ce412ad` against the fresh release
+  addresses, deployed-source hashes, 52-transaction receipt sweep, custody
+  reconciliation, network parity test, frontend verifier, and seven
+  render/write screenshots. It returned `APPROVED` with no blocking finding.
+- Two observations were explicitly non-blocking: a duplicate-sale claim can
+  still begin the recoverable prepaid flow before the contract rejects it, and
+  `verify-live.mjs` formats the audited GBP reference using a fixed GBP label.
+  Neither observation invalidates the canonical contract guard, the proven
+  credit withdrawal path, production currency rendering, or this checkpoint.
+- This approval closed `POST_DEPLOY_TEST`. Public GitHub/Vercel publication
+  remained truthfully deferred to `POST_GITHUB_VERCEL_FINAL`.
+
+## 2026-07-29 -- Public GitHub and Vercel release -- LIVE PASS; final co-review pending
+
+- GitHub CLI identity was verified as `ldkfj`; repo-local author is
+  `ldkfj <200510351+ldkfj@users.noreply.github.com>` and the selected remote is
+  `https://github.com/ldkfj/saleproof.git`. Pre-push gates passed: clean tree,
+  ignored secrets and real environment, project gate `PASS`, `97` Python
+  tests, frontend typecheck/build, `10 files / 43 tests`, and lint exit zero.
+- Remote `master` contained one independent historical README punctuation
+  edit. Commit `3d4c7a7` merged that history with the `ours` strategy; its tree
+  has zero diff from anonymous-approved `6054c84`. The push was a normal
+  fast-forward, and local/remote HEAD matched
+  `3d4c7a7287b46133c63db47f44b53885d357606c`.
+- Vercel identity was verified as user `hongcham819-3406`, team `gam`
+  (`gam9`), project `gam9/saleproof`, root directory `frontend`, framework
+  Vite. Production variables were overwritten with `studionet`,
+  PriceLedger `0xE14023EF575ce85Cd0a709DA3997483315BaEB40`, and MerchantBond
+  `0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b`.
+- Production deployment `dpl_Frb4LzmiYSSSCjQFDmt6MbibyXEo` reached `READY`;
+  the remote TypeScript/Vite build transformed 494 modules and Vercel aliased
+  it to `https://saleproof.vercel.app`.
+- Public smoke verification displayed the Studionet badge,
+  `books.toscrape.com`, product #1 `6 snapshots / GBP 51.77`, and claim #1
+  `SETTLED / INFLATED REF`. A complete read also displayed claim #2
+  `SETTLED / GENUINE`. Screenshot
+  `docs/screenshots/current/08-public-production-overview.png` records the
+  public production Overview.
+- Studio RPC capacity error `-32006` caused some aggregate refreshes to omit
+  individual rows temporarily. The bounded-retry chain verifier independently
+  passed the exact pair and subsequent UI reads restored the finalized rows;
+  no contract or custody state changed.
+- GitHub and Vercel publication are now `PASS`. The only remaining completion
+  gate is anonymous `POST_GITHUB_VERCEL_FINAL` approval of the exact clean
+  post-release evidence revision.
