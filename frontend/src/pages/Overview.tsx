@@ -6,6 +6,8 @@ import type { Merchant } from "../lib/contracts";
 import { TableSkeleton } from "../components/Skeleton";
 import { TxAction } from "../components/TxAction";
 import { PrepaidTxAction } from "../components/PrepaidTxAction";
+import { AddProductForm } from "../components/AddProductForm";
+import { AnnounceSaleForm } from "../components/AnnounceSaleForm";
 import { ActiveBadge, StateBadge, VerdictBadge } from "../components/Badge";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
 import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
@@ -82,6 +84,13 @@ export const Overview: React.FC = () => {
 
   const merchantSales = address
     ? sales.filter((sale) => sale.merchant.toLowerCase() === address.toLowerCase())
+    : [];
+  const merchantProducts = address
+    ? products.filter(
+        (product) =>
+          product.active &&
+          product.merchant.toLowerCase() === address.toLowerCase(),
+      )
     : [];
   const openClaim = claims.some((claim) => {
     const sale = sales.find((candidate) => candidate.id === claim.sale_id);
@@ -253,6 +262,21 @@ export const Overview: React.FC = () => {
         </div>
       )}
 
+      {walletMerchant?.active && (
+        <>
+          <AddProductForm
+            merchantActive
+            onSuccess={refreshAfterWrite}
+          />
+          <AnnounceSaleForm
+            products={merchantProducts}
+            merchantActive
+            saleCount={sales.length}
+            onSuccess={refreshAfterWrite}
+          />
+        </>
+      )}
+
       {/* Section 1: Registered Products */}
       <div className="card">
         <div className="card-header">
@@ -361,7 +385,7 @@ export const Overview: React.FC = () => {
                         </Link>
                       </td>
                       <td className="mono" style={{ fontWeight: 600 }}>
-                        {centsToPrice(s.claimed_ref_price_cents, "GBP")}
+                        {centsToPrice(s.claimed_ref_price_cents, s.currency)}
                       </td>
                       <td className="mono" style={{ color: "#fbbf24", fontWeight: 700 }}>
                         -{discountPct}% ({s.claimed_discount_bp} BP)

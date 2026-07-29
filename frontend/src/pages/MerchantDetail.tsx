@@ -161,7 +161,7 @@ export const MerchantDetail: React.FC = () => {
                         </Link>
                       </td>
                       <td className="mono" style={{ fontWeight: 600 }}>
-                        {centsToPrice(s.claimed_ref_price_cents, "GBP")}
+                        {centsToPrice(s.claimed_ref_price_cents, s.currency)}
                       </td>
                       <td className="mono" style={{ color: "#fbbf24", fontWeight: 700 }}>
                         -{discountPct}% ({s.claimed_discount_bp} BP)

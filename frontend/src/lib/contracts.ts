@@ -24,8 +24,11 @@ export interface Sale {
   product_id: number;
   claimed_ref_price_cents: number;
   claimed_discount_bp: number;
+  currency: string;
   announced_at: number;
   ends_at: number;
+  observation_count_at_announcement: number;
+  claim_id: number;
   active: boolean;
 }
 
@@ -83,6 +86,42 @@ function big(val: any): bigint {
   return 0n;
 }
 
+function decodeObservationInt(value: unknown): number {
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return Number.NaN;
+}
+
+export function decodeObservation(o: any): Observation {
+  return {
+    price_cents: decodeObservationInt(o.price_cents),
+    currency: String(o.currency ?? ""),
+    observed_at: decodeObservationInt(o.observed_at),
+    watcher: String(o.watcher ?? ""),
+    ok: o.ok === true,
+    note: String(o.note ?? ""),
+  };
+}
+
+export function decodeSale(s: any): Sale {
+  return {
+    id: num(s.id),
+    merchant: String(s.merchant ?? ""),
+    product_id: num(s.product_id),
+    claimed_ref_price_cents: num(s.claimed_ref_price_cents),
+    claimed_discount_bp: num(s.claimed_discount_bp),
+    currency: String(s.currency ?? ""),
+    announced_at: num(s.announced_at),
+    ends_at: num(s.ends_at),
+    observation_count_at_announcement: num(
+      s.observation_count_at_announcement,
+    ),
+    claim_id: num(s.claim_id),
+    active: s.active === true,
+  };
+}
+
 export const ledgerContract = {
   async getConfig(): Promise<LedgerConfig> {
     const cfg: any = await client.readContract({
@@ -132,14 +171,7 @@ export const ledgerContract = {
       transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     const list = Array.isArray(res) ? res : [];
-    return list.map((o: any) => ({
-      price_cents: num(o.price_cents),
-      currency: String(o.currency || "USD"),
-      observed_at: num(o.observed_at),
-      watcher: String(o.watcher || ""),
-      ok: Boolean(o.ok),
-      note: String(o.note || ""),
-    }));
+    return list.map(decodeObservation);
   },
 
   async getRecentObservations(productId: number, k: number): Promise<Observation[]> {
@@ -150,14 +182,7 @@ export const ledgerContract = {
       transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
     const list = Array.isArray(res) ? res : [];
-    return list.map((o: any) => ({
-      price_cents: num(o.price_cents),
-      currency: String(o.currency || "USD"),
-      observed_at: num(o.observed_at),
-      watcher: String(o.watcher || ""),
-      ok: Boolean(o.ok),
-      note: String(o.note || ""),
-    }));
+    return list.map(decodeObservation);
   },
 
   async isRegistrar(addr: string): Promise<boolean> {
@@ -192,16 +217,7 @@ export const bondContract = {
       args: [saleId],
       transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
     });
-    return {
-      id: num(s.id),
-      merchant: String(s.merchant || ""),
-      product_id: num(s.product_id),
-      claimed_ref_price_cents: num(s.claimed_ref_price_cents),
-      claimed_discount_bp: num(s.claimed_discount_bp),
-      announced_at: num(s.announced_at),
-      ends_at: num(s.ends_at),
-      active: Boolean(s.active),
-    };
+    return decodeSale(s);
   },
 
   async getClaim(claimId: number): Promise<Claim> {

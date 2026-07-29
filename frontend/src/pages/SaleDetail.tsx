@@ -11,20 +11,7 @@ import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
 import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
 import { useWallet } from "../lib/wallet";
 import { useProtocolData } from "../lib/store";
-
-function parseScaledDecimal(input: string, decimals: number, label: string): number {
-  const value = input.trim();
-  if (!/^\d+(?:\.\d+)?$/.test(value)) throw new Error(`Enter a valid ${label}.`);
-  const [whole, fraction = ""] = value.split(".");
-  if (fraction.length > decimals) {
-    throw new Error(`${label} may have at most ${decimals} decimal places.`);
-  }
-  const scaled =
-    BigInt(whole) * 10n ** BigInt(decimals) +
-    BigInt(fraction.padEnd(decimals, "0") || "0");
-  if (scaled > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error(`${label} is too large.`);
-  return Number(scaled);
-}
+import { getEligibleSaleEvidence } from "../lib/sale";
 
 export const SaleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,13 +23,8 @@ export const SaleDetail: React.FC = () => {
   const [observations, setObservations] = useState<Observation[]>([]);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [walletMerchant, setWalletMerchant] = useState<Merchant | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [referencePrice, setReferencePrice] = useState("65.00");
-  const [discountPercent, setDiscountPercent] = useState("20");
-  const [duration, setDuration] = useState("86400");
   const { address } = useWallet();
-  const { products, config, refresh } = useProtocolData();
+  const { config, refresh } = useProtocolData();
 
   const loadSale = useCallback(async () => {
     if (!saleId || isNaN(saleId)) {
@@ -89,26 +71,6 @@ export const SaleDetail: React.FC = () => {
     void loadSale();
   }, [loadSale]);
 
-  useEffect(() => {
-    if (!address) {
-      setWalletMerchant(null);
-      return;
-    }
-    void bondContract.getMerchant(address).then(setWalletMerchant).catch(() => setWalletMerchant(null));
-  }, [address]);
-
-  const merchantProducts = address
-    ? products.filter(
-        (product) =>
-          product.active && product.merchant.toLowerCase() === address.toLowerCase(),
-      )
-    : [];
-
-  useEffect(() => {
-    if (!selectedProductId && merchantProducts[0]) {
-      setSelectedProductId(String(merchantProducts[0].id));
-    }
-  }, [merchantProducts, selectedProductId]);
 
   const refreshAfterWrite = async () => {
     await Promise.all([loadSale(), refresh()]);
@@ -138,9 +100,10 @@ export const SaleDetail: React.FC = () => {
     );
   }
 
-  const validObsPrices = observations.filter((o) => o.ok).map((o) => o.price_cents);
-  const thirtyDayLowCents = validObsPrices.length > 0 ? Math.min(...validObsPrices) : null;
-  const currency = observations[0]?.currency || "GBP";
+  const { eligibleObservations, chartObservations, lowestPriceCents } =
+    getEligibleSaleEvidence(observations, sale);
+  const thirtyDayLowCents = lowestPriceCents;
+  const currency = sale.currency;
   const discountPct = (sale.claimed_discount_bp / 100).toFixed(1);
 
   const isRefPriceInflated =
@@ -203,7 +166,7 @@ export const SaleDetail: React.FC = () => {
 
           <div style={{ background: "var(--bg-elevated)", padding: 14, borderRadius: 8 }}>
             <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>
-              On-Chain 30-Day Low
+              Eligible On-Chain 30-Day Low
             </div>
             <div
               className="mono"
@@ -217,7 +180,7 @@ export const SaleDetail: React.FC = () => {
             </div>
             {isRefPriceInflated && (
               <div style={{ fontSize: 11, color: "#f87171", marginTop: 2 }}>
-                ⚠️ Claimed Ref Price &gt; Observed Low
+                ⚠️ Claimed Ref Price &gt; Eligible Frozen Low
               </div>
             )}
           </div>
@@ -235,10 +198,13 @@ export const SaleDetail: React.FC = () => {
             <span style={{ fontSize: 12, fontWeight: 600 }}>
               Price Evidence Sparkline vs Claimed Reference Price
             </span>
-            <Sparkline observations={observations} claimedRefPriceCents={sale.claimed_ref_price_cents} />
+            <Sparkline
+              observations={chartObservations}
+              claimedRefPriceCents={sale.claimed_ref_price_cents}
+            />
           </div>
           <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            Red dashed line indicates the merchant's claimed reference price. The purple sparkline tracks actual on-chain snapshot evidence.
+            Red dashed line indicates the merchant's claimed reference price. The purple sparkline shows the final {chartObservations.length} of {eligibleObservations.length} observations eligible under the sale's frozen prefix, exact {currency} currency, and inclusive 30-day announcement window.
           </p>
         </div>
       </div>
@@ -280,96 +246,6 @@ export const SaleDetail: React.FC = () => {
             onSuccess={refreshAfterWrite}
             disabled={Boolean(fileClaimReason)}
             disabledReason={fileClaimReason}
-          />
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">Announce Sale</h2>
-        </div>
-        <div className="grid-3">
-          <label>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Product</span>
-            <select
-              className="search-input"
-              value={selectedProductId}
-              onChange={(event) => setSelectedProductId(event.target.value)}
-            >
-              <option value="">Select your product</option>
-              {merchantProducts.map((product) => (
-                <option key={product.id} value={product.id}>
-                  Product #{product.id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              Reference price ({currency})
-            </span>
-            <input
-              className="search-input"
-              value={referencePrice}
-              inputMode="decimal"
-              onChange={(event) => setReferencePrice(event.target.value)}
-            />
-          </label>
-          <label>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Discount %</span>
-            <input
-              className="search-input"
-              value={discountPercent}
-              inputMode="decimal"
-              onChange={(event) => setDiscountPercent(event.target.value)}
-            />
-          </label>
-          <label>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Duration</span>
-            <select
-              className="search-input"
-              value={duration}
-              onChange={(event) => setDuration(event.target.value)}
-            >
-              <option value="3600">1 hour</option>
-              <option value="86400">24 hours</option>
-              <option value="604800">7 days</option>
-              <option value="2592000">30 days</option>
-            </select>
-          </label>
-          <TxAction
-            label="Announce Sale"
-            request={() => ({
-              address: BOND_ADDRESS as `0x${string}`,
-              functionName: "announce_sale",
-              args: [
-                Number(selectedProductId),
-                parseScaledDecimal(referencePrice, 2, "reference price"),
-                parseScaledDecimal(discountPercent, 2, "discount"),
-                Number(duration),
-              ],
-            })}
-            onSuccess={async () => {
-              await refresh();
-            }}
-            disabled={
-              !walletMerchant?.active ||
-              !selectedProductId ||
-              (() => {
-                try {
-                  const price = parseScaledDecimal(referencePrice, 2, "reference price");
-                  const discount = parseScaledDecimal(discountPercent, 2, "discount");
-                  return price < 1 || price > 1_000_000_000 || discount < 100 || discount > 9500;
-                } catch {
-                  return true;
-                }
-              })()
-            }
-            disabledReason={
-              !walletMerchant?.active
-                ? "Only an active registered merchant can announce sales."
-                : "Select your product and enter a valid price and 1–95% discount."
-            }
           />
         </div>
       </div>
