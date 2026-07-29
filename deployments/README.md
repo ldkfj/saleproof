@@ -39,7 +39,7 @@ evidence for this project.
 |---|---|
 | Contract source freeze commit | `bccf236fb56cedb43715b753a0d48cc16ce50f87` |
 | Frontend prepaid correction commit | `a0ce250` |
-| Frontend anonymous-blocker correction commits | `5e29480` (implementation), `765f5d8` (tests) |
+| Frontend anonymous-blocker correction commits | `5e29480` (implementation), `765f5d8` (core tests), `b8618e5` (page-level hardening) |
 | Incident/spec evidence base | `8e3cf1a7ca8d4ed190910c6c2d3c64a8c9d84212` |
 | Exact review-package commit | Supplied by `git rev-parse HEAD` after this manifest is committed; must have a clean tracked tree |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
@@ -69,8 +69,8 @@ All checks below ran against the source hashes above:
 | `genvm-lint typecheck` on both contracts | PASS; no type errors |
 | Live Studio schema probe | PASS; constructor/method counts `3/13` and `7/22` |
 | `npx tsc --noEmit` | PASS |
-| `npm run build` | PASS; 492 modules, non-blocking chunk-size warning |
-| `npx vitest run` | PASS; 7 files, 35 tests |
+| `npm run build` | PASS; 494 modules, non-blocking chunk-size warning |
+| `npx vitest run` | PASS; 10 files, 40 tests |
 | `npm run lint` | Exit 0; three recorded pre-existing warnings |
 | Release runner `node --check` and oxlint, both mirrors | PASS |
 
@@ -88,11 +88,16 @@ The anonymous-blocker correction frontend hashes are:
 - `frontend/src/lib/contracts.ts`: `81a89902d5a7b09ac1ef467836a6c109b93820da1717c658ec36e4958cd3dbb6`
 - `frontend/src/lib/sale.ts`: `f1230f05cd80b6fece02dc4c3f25752c1bf7e190d939f9a8195a1e0ed5103f6f`
 - `frontend/src/lib/sale.test.ts`: `29aede1b69ec9c5b83baa1dd26b407e801ebf2a8e35fdc1f91557fab10d8ab91`
-- `frontend/src/lib/contracts.test.ts`: `d0efd3e43d6179c2d8eff4b8c3e14d5c71498ace89789c3975beb8c53af53f7c`
-- `frontend/src/components/AnnounceSaleForm.tsx`: `592f3db0a9fb19db24c9045b7a8c497a18d6866b8e58de93c61766996e96fec8`
-- `frontend/src/components/AnnounceSaleForm.test.tsx`: `85dbdf0121f3297e0b7e4fc99f0951b08d681320e284ad3a9bda51fc6f18c0c0`
-- `frontend/src/components/AddProductForm.tsx`: `5f6e3af2fa597b90b9b14af99e0cff52f53abe67003b1de19a12ce396818cbb7`
-- `frontend/src/pages/Overview.tsx`: `c038bf72b9290d440a06fc3766a8c77a9db4d1c860a90fc4bedcd72e3f1fbc65`
+- `frontend/src/lib/contracts.test.ts`: `6628db309e53eded587645fe819178f1d88ea269550e506525e9a5611286e0a2`
+- `frontend/src/lib/product.ts`: `0dccc773564a8a4a09eedace2d615101620c5427312c4614a839fabf6b59875f`
+- `frontend/src/lib/product.test.ts`: `f4e72dfa55501020054ddeef4ff23b0b3569f08f3bd6bad303360f0842c7ab2d`
+- `frontend/src/components/AnnounceSaleForm.tsx`: `98d658faed1fecca7f0653a5a65d5998f57f4510565ffec866b2f25e7f85387b`
+- `frontend/src/components/AnnounceSaleForm.test.tsx`: `26d4b2408de167278742c16ea97be0b26fb7ea441347ed85592fa18678aabf27`
+- `frontend/src/components/AddProductForm.tsx`: `0ad26395bda412ef59ec5a355bca120a43e2ad83f30d4f22773408983801427d`
+- `frontend/src/components/MerchantSetupActions.tsx`: `7f4a4c6726be677a65d6dc32505893a644fdeafd3a3a6bd240168470cd3bcbd1`
+- `frontend/src/components/MerchantSetupActions.test.tsx`: `ce1bd2dd5381ab390b4aef92e3bf471d10cc6eecca76e09d7edf2e44fb846763`
+- `frontend/src/pages/Overview.tsx`: `c5f51f13baaa69a455903cafa0ab0fb6fdbcdf39effda30fb0b6a42fd13c0772`
+- `frontend/src/pages/Overview.test.tsx`: `c7b60d867d7a9ae4487b864c6dad6e3a3b5a4fc93e5aa2c279fcf21d2d27bd37`
 - `frontend/src/pages/SaleDetail.tsx`: `3d5be8ad4cbd6aade6f9685a18c37e6bb3e3d8c5af44dfb5967c90acf5e4ca5e`
 - `frontend/src/pages/MerchantDetail.tsx`: `a9903a42c39d0bd66504a5a16eb5689b76ca6526fd262c1eb9e196bef7ad0fbe`
 
