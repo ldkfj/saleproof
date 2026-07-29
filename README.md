@@ -12,6 +12,7 @@ discount is supported by an independently recorded on-chain price history.
 - [Production web app](https://saleproof.vercel.app) — live on Vercel with the
   current Studionet release pair.
 - [Public GitHub repository](https://github.com/ldkfj/saleproof)
+- [Final exact-revision deployment record](https://github.com/ldkfj/saleproof/releases/tag/studionet-final)
 
 Both contracts were deployed from dual-approved commit `7900161`. Their
 deployed source, configuration, registrar wiring, recovery rehearsal, primary
@@ -193,9 +194,10 @@ Current results:
 | Vite production build | PASS; 494 modules |
 | Vitest | `10 files / 43 tests` |
 | Oxlint | exit 0; three known Fast Refresh warnings |
-| Five-route render evidence | PASS |
+| Five-route local production-build render evidence | PASS |
 | Real UI snapshot write | PASS; `5 -> 6` observations without reload |
 | Public Vercel smoke check | PASS; books row, `£51.77`, `SETTLED`, `INFLATED REF` |
+| Public deep-route direct load/reload | PASS; see the final deployment record |
 
 The opt-in network and browser scripts fail closed unless explicit release
 addresses and opt-in flags are supplied. A default skip, an old screenshot, a

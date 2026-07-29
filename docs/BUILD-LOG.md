@@ -692,3 +692,25 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
   `5/5`, contract quality `5/5`, engineering `5/5`, and frontend/UX `4/5`.
   The recommendation is `READY`; final Task completion still requires the
   anonymous checkpoint vote on the same exact revision and evidence package.
+
+## 2026-07-29 -- Anonymous POST_GITHUB_VERCEL_FINAL round 1 -- CHANGES REQUIRED
+
+- The anonymous co-review AI audited exact commit
+  `0845c3de4ccb0fae3114da4d8eb5a79229347a54` and independently reverified the
+  repository, contracts, 52-transaction receipt sweep, custody, tests, live
+  verifier, Vercel commit status, and Overview data. It returned
+  `CHANGES REQUIRED` for two public-release blockers.
+- Direct requests and reloads for `/product/1`, `/sale/1`, `/claim/1`, and the
+  merchant route returned Vercel `404` because the Vite `BrowserRouter` app had
+  no hosting fallback. Client-side navigation alone had hidden the defect.
+- The consolidated manifest still presented environment-promotion deployment
+  `dpl_Frb4LzmiYSSSCjQFDmt6MbibyXEo` and its immutable URL as current, while
+  exact commit `0845c3d` was actually served by
+  `dpl_J5pxebyX66m9C7e4yktNzr4Y5EwF`.
+- The correction adds the official Vercel Vite-SPA catch-all rewrite at
+  `frontend/vercel.json`. The manifest now clearly supersedes both old
+  deployments and delegates generated deployment ID, immutable URL, exact
+  commit, route results, and screenshots to the public GitHub release
+  `studionet-final`, whose tag targets the already-created correction commit.
+  This avoids claiming a deployment identifier before Vercel generates it and
+  avoids an infinite documentation/deployment self-reference loop.

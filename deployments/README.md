@@ -47,8 +47,9 @@ evidence for this project.
 | Pre-deploy Codex verdict | APPROVED |
 | Pre-deploy anonymous co-review verdict | APPROVED on exact commit `7900161` |
 | Post-live anonymous co-review | APPROVED on exact commit `6054c849cdf7e149eb278c63f5c284c56ce412ad` |
-| Public source-tree commit | `3d4c7a7287b46133c63db47f44b53885d357606c` (history-only merge; zero tree diff from `6054c84`) |
-| Final post-GitHub/Vercel anonymous co-review | PENDING on this final evidence package |
+| Final application/evidence revision | [GitHub release `studionet-final`](https://github.com/ldkfj/saleproof/releases/tag/studionet-final); the tag resolves to the exact correction commit |
+| Generated Vercel deployment evidence | Published in the release record above so deployment ID/immutable URL can be bound to the already-created exact commit without a self-referential docs commit |
+| Final post-GitHub/Vercel anonymous co-review | PENDING on the tagged correction revision and release evidence |
 
 The selected wallet was derived from the configured local key without exposing
 the key. The user explicitly authorized the deployments and test transactions.
@@ -239,23 +240,29 @@ Screenshots:
 |---|---|
 | GitHub account / repository | `ldkfj` / [ldkfj/saleproof](https://github.com/ldkfj/saleproof) |
 | GitHub branch | `master` |
-| Public commit count after this evidence commit | `113` |
+| Public commit count after this evidence commit | `114` |
 | Vercel user / team | `hongcham819-3406` / `gam` (`gam9`) |
 | Vercel project | `gam9/saleproof`; root `frontend`; framework Vite |
-| Production deployment | `dpl_Frb4LzmiYSSSCjQFDmt6MbibyXEo` / `READY` |
-| Immutable deployment URL | `https://saleproof-42efboiqb-gam9.vercel.app` |
+| Exact revision, production deployment, immutable URL | [Canonical generated deployment record](https://github.com/ldkfj/saleproof/releases/tag/studionet-final) |
 | Public production alias | [saleproof.vercel.app](https://saleproof.vercel.app) |
 | Production network | `VITE_GL_NETWORK=studionet` |
 | Production ledger | `VITE_LEDGER_ADDRESS=0xE14023EF575ce85Cd0a709DA3997483315BaEB40` |
 | Production bond | `VITE_BOND_ADDRESS=0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b` |
 | Remote build | PASS; TypeScript + Vite, 494 modules |
 | Public smoke check | PASS; `books.toscrape.com`, product #1 `6 snapshots / £51.77`, claim #1 `SETTLED / INFLATED REF` |
+| Direct/reloaded deep routes | PASS for `/`, `/product/1`, `/sale/1`, `/claim/1`, and `/merchant/0x666d6a7dca1319cadcc7fb6b10dab55cd8e128dc`; HTTP/render evidence is attached to the canonical release record |
 
 The public Overview also displayed claim #2 as `SETTLED / GENUINE` during a
 complete read. Studionet temporarily returned capacity error `-32006` during
 verification, so some aggregate refreshes omitted individual rows until the
 next read. The independent bounded-retry chain verifier passed the exact pair;
 this RPC-capacity behavior did not change finalized contract state.
+
+The Vite SPA fallback is committed at `frontend/vercel.json` using Vercel's
+documented catch-all rewrite to `/index.html`. The canonical release record
+contains the post-deployment direct-load and reload checks so the generated
+deployment identifiers and route evidence remain bound to the exact tagged
+revision.
 
 ## GenLayer submission category and scorecard
 
@@ -282,7 +289,7 @@ Weakness/blocker: Coverage scans and observation reads are demo-scale and
 unpaginated; no completion blocker.
 
 Engineering: 5/5
-Evidence: 113-commit public history, reproducible source and requirements,
+Evidence: 114-commit public history, reproducible source and requirements,
 97 unit/harness tests, 8 Direct GenVM tests, contract lint/typecheck/schema
 checks, network parity, complete build log, release manifest, recovery runbook,
 tracked screenshots, ignored secrets, and a clean public boundary.
@@ -336,3 +343,15 @@ Custody-incident pair:
 
 Neither pair may be used as current source, journey, frontend, or submission
 evidence.
+
+Superseded Vercel deployments:
+
+- `dpl_Frb4LzmiYSSSCjQFDmt6MbibyXEo`
+  (`saleproof-42efboiqb-gam9.vercel.app`) was the environment-promotion build
+  before the final Git-linked evidence commits.
+- `dpl_J5pxebyX66m9C7e4yktNzr4Y5EwF`
+  (`saleproof-oxb8p95ue-gam9.vercel.app`) deployed commit `0845c3d` but lacked
+  the SPA deep-route fallback and was rejected at anonymous final review.
+
+Neither deployment is the current exact-revision evidence. Use only the
+deployment identified by the `studionet-final` release record.
