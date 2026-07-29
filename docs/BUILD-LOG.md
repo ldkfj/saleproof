@@ -687,3 +687,8 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - GitHub and Vercel publication are now `PASS`. The only remaining completion
   gate is anonymous `POST_GITHUB_VERCEL_FINAL` approval of the exact clean
   post-release evidence revision.
+- The mandatory final category scorecard classifies SaleProof as `PROJECT`,
+  passes the validity gate, and records evidence-backed scores of GenLayer fit
+  `5/5`, contract quality `5/5`, engineering `5/5`, and frontend/UX `4/5`.
+  The recommendation is `READY`; final Task completion still requires the
+  anonymous checkpoint vote on the same exact revision and evidence package.

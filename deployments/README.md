@@ -239,7 +239,7 @@ Screenshots:
 |---|---|
 | GitHub account / repository | `ldkfj` / [ldkfj/saleproof](https://github.com/ldkfj/saleproof) |
 | GitHub branch | `master` |
-| Public commit count after this evidence commit | `112` |
+| Public commit count after this evidence commit | `113` |
 | Vercel user / team | `hongcham819-3406` / `gam` (`gam9`) |
 | Vercel project | `gam9/saleproof`; root `frontend`; framework Vite |
 | Production deployment | `dpl_Frb4LzmiYSSSCjQFDmt6MbibyXEo` / `READY` |
@@ -257,22 +257,55 @@ verification, so some aggregate refreshes omitted individual rows until the
 next read. The independent bounded-retry chain verifier passed the exact pair;
 this RPC-capacity behavior did not change finalized contract state.
 
-## Final release scorecard
+## GenLayer submission category and scorecard
 
-| Category | Result |
-|---|---|
-| Contract source and deployed-code parity | PASS |
-| Studionet addresses and finalized deployment receipts | PASS |
-| Constructor config, Root membership, and registrar wiring | PASS |
-| Disposable authorized/unauthorized Root recovery rehearsal | PASS |
-| Primary judgment, appeal, guard, exit, and pull-payment journeys | PASS |
-| Deterministic settlement and custody conservation | PASS |
-| Contract, Direct GenVM, schema, and network verification | PASS |
-| Frontend typecheck, build, unit tests, lint, and five-route render | PASS |
-| Real finalized UI write and eventual-read correction | PASS |
-| Public GitHub history and presentation boundary | PASS |
-| Production Vercel environment, build, alias, and smoke check | PASS |
-| Final anonymous `POST_GITHUB_VERCEL_FINAL` review | PENDING |
+```text
+GENLAYER SUBMISSION CATEGORY AND SCORECARD
+Category: PROJECT
+Validity gate: PASS
+
+GenLayer fit: 5/5
+Evidence: Validator-replicated web extraction and comparative consensus decide
+the price observation and sale verdict; deterministic on-chain settlement
+changes real Studionet bond, strike, pool, and pull-payment state. Primary and
+appeal judgments were exercised live against frozen on-chain history.
+Weakness/blocker: Validator web reachability and page stability remain external
+availability dependencies; no completion blocker.
+
+Contract quality: 5/5
+Evidence: Two linked Intelligent Contracts enforce strict evidence validation,
+frozen-prefix/currency/time rules, canonical one-claim sales, bounded appeal
+recomputation, prepaid custody, deterministic conservation, pull payments, and
+Root recovery. Unit, Direct GenVM, schema, finalized live journeys, guard
+probes, source parity, and a disposable upgrade/restore rehearsal all pass.
+Weakness/blocker: Coverage scans and observation reads are demo-scale and
+unpaginated; no completion blocker.
+
+Engineering: 5/5
+Evidence: 113-commit public history, reproducible source and requirements,
+97 unit/harness tests, 8 Direct GenVM tests, contract lint/typecheck/schema
+checks, network parity, complete build log, release manifest, recovery runbook,
+tracked screenshots, ignored secrets, and a clean public boundary.
+Weakness/blocker: The Vite bundle-size warning and three Fast Refresh lint
+warnings are non-blocking.
+
+Frontend / UX: 4/5
+Evidence: The public Vite app calls the current Studionet pair through
+genlayer-js, supports injected and Studionet burner wallets, implements every
+advertised write journey, requires FINALIZED plus leader SUCCESS, reconciles
+prepaid credit, renders chain-derived prices/verdicts/settlement, and passed
+five-route render plus a real same-page finalized snapshot write.
+Weakness/blocker: Studio RPC capacity can temporarily yield incomplete
+aggregate tables until refresh, and duplicate-claim UX can begin a recoverable
+prepaid flow before the contract guard rejects it; neither is a completion
+blocker.
+
+Overall evidence-based assessment: Strong end-to-end GenLayer Project with
+exceptional consensus necessity, contract/economic rigor, reproducible
+engineering evidence, and a complete live frontend. Known UX/RPC limitations
+are disclosed and do not undermine chain authority or fund safety.
+Submission recommendation: READY
+```
 
 ## Remaining release gates
 
