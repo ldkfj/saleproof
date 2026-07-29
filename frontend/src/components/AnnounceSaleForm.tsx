@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Product } from "../lib/contracts";
 import { BOND_ADDRESS } from "../lib/chain";
 import {

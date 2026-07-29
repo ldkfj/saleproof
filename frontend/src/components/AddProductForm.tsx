@@ -1,5 +1,6 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { BOND_ADDRESS } from "../lib/chain";
+import { buildAddProductRequest } from "../lib/product";
 import { TxAction } from "./TxAction";
 
 interface AddProductFormProps {
@@ -12,11 +13,14 @@ export const AddProductForm: React.FC<AddProductFormProps> = ({
   onSuccess,
 }) => {
   const [productUrl, setProductUrl] = useState("");
-  const url = productUrl.trim();
-  const urlValid =
-    url.length > 0 &&
-    url.length <= 500 &&
-    (url.startsWith("http://") || url.startsWith("https://"));
+  const invalidUrl = (() => {
+    try {
+      buildAddProductRequest(BOND_ADDRESS as `0x${string}`, productUrl);
+      return false;
+    } catch {
+      return true;
+    }
+  })();
 
   return (
     <div className="card">
@@ -36,13 +40,14 @@ export const AddProductForm: React.FC<AddProductFormProps> = ({
         </label>
         <TxAction
           label="Add Product"
-          request={() => ({
-            address: BOND_ADDRESS as `0x${string}`,
-            functionName: "add_product",
-            args: [url],
-          })}
+          request={() =>
+            buildAddProductRequest(
+              BOND_ADDRESS as `0x${string}`,
+              productUrl,
+            )
+          }
           onSuccess={onSuccess}
-          disabled={!merchantActive || !urlValid}
+          disabled={!merchantActive || invalidUrl}
           disabledReason={
             !merchantActive
               ? "Only an active registered merchant can add products."

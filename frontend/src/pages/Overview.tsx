@@ -6,8 +6,7 @@ import type { Merchant } from "../lib/contracts";
 import { TableSkeleton } from "../components/Skeleton";
 import { TxAction } from "../components/TxAction";
 import { PrepaidTxAction } from "../components/PrepaidTxAction";
-import { AddProductForm } from "../components/AddProductForm";
-import { AnnounceSaleForm } from "../components/AnnounceSaleForm";
+import { MerchantSetupActions } from "../components/MerchantSetupActions";
 import { ActiveBadge, StateBadge, VerdictBadge } from "../components/Badge";
 import { centsToPrice, shortAddr, timeAgo, weiToGen } from "../lib/format";
 import { BOND_ADDRESS, GL_NETWORK_LABEL } from "../lib/chain";
@@ -262,20 +261,12 @@ export const Overview: React.FC = () => {
         </div>
       )}
 
-      {walletMerchant?.active && (
-        <>
-          <AddProductForm
-            merchantActive
-            onSuccess={refreshAfterWrite}
-          />
-          <AnnounceSaleForm
-            products={merchantProducts}
-            merchantActive
-            saleCount={sales.length}
-            onSuccess={refreshAfterWrite}
-          />
-        </>
-      )}
+      <MerchantSetupActions
+        products={merchantProducts}
+        merchantActive={walletMerchant?.active === true}
+        saleCount={sales.length}
+        onSuccess={refreshAfterWrite}
+      />
 
       {/* Section 1: Registered Products */}
       <div className="card">
