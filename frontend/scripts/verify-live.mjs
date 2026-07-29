@@ -20,6 +20,30 @@ const ledgerAddress = requireAddress("VITE_LEDGER_ADDRESS", LEDGER_ADDRESS);
 const bondAddress = requireAddress("VITE_BOND_ADDRESS", BOND_ADDRESS);
 const client = createClient({ chain: chains.studionet });
 
+const delay = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function withBusyRetry(label, operation) {
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const rpcError = error?.cause ?? error;
+      if (rpcError?.code !== -32006 || attempt === 6) {
+        throw error;
+      }
+      const retryAfterSeconds = Number(
+        rpcError?.data?.retry_after_seconds ?? 2,
+      );
+      console.warn(
+        `${label}: Studio RPC busy, retrying in ${retryAfterSeconds}s (${attempt}/6)`,
+      );
+      await delay(retryAfterSeconds * 1000);
+    }
+  }
+  throw new Error(`${label}: retry loop exhausted`);
+}
+
 function asBigInt(value) {
   return typeof value === "bigint" ? value : BigInt(value);
 }
@@ -62,29 +86,30 @@ function expect(label, actual, expected) {
 }
 
 const readLedger = (functionName, args) =>
-  client.readContract({
-    address: ledgerAddress,
-    functionName,
-    args,
-    transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
-  });
+  withBusyRetry(`PriceLedger.${functionName}`, () =>
+    client.readContract({
+      address: ledgerAddress,
+      functionName,
+      args,
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
+    }),
+  );
 const readBond = (functionName, args) =>
-  client.readContract({
-    address: bondAddress,
-    functionName,
-    args,
-    transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
-  });
+  withBusyRetry(`MerchantBond.${functionName}`, () =>
+    client.readContract({
+      address: bondAddress,
+      functionName,
+      args,
+      transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
+    }),
+  );
 
-const [ledgerConfig, bondConfig, product, observations, sale, claim] =
-  await Promise.all([
-    readLedger("get_config", []),
-    readBond("get_config", []),
-    readLedger("get_product", [1]),
-    readLedger("get_observations", [1]),
-    readBond("get_sale", [1]),
-    readBond("get_claim", [1]),
-  ]);
+const ledgerConfig = await readLedger("get_config", []);
+const bondConfig = await readBond("get_config", []);
+const product = await readLedger("get_product", [1]);
+const observations = await readLedger("get_observations", [1]);
+const sale = await readBond("get_sale", [1]);
+const claim = await readBond("get_claim", [1]);
 
 expect(
   "Bond ledger link",
@@ -129,7 +154,7 @@ expect("Sale reference", saleReference, "£65.00");
 expect("Sale discount", saleDiscount, 2000);
 expect("Claim state", claimState, "SETTLED");
 expect("Claim verdict", claimVerdict, "INFLATED_REFERENCE");
-expect("Claim confidence", claimConfidence, 10000);
+expect("Claim confidence", claimConfidence, 9950);
 expect("Claim deposit", weiToGen(claimDeposit), "0.1 GEN");
 expect("Settlement slash", weiToGen(slash), "0.1 GEN");
 expect("Buyer total", weiToGen(buyerTotal), "0.2 GEN");

@@ -1,11 +1,13 @@
 # Screenshot evidence status
 
-`01-overview.png` through `07-write-final.png` were captured from the
-superseded pre-correction Studionet contract pair. They are retained only for
-historical audit continuity and must not be cited as current release evidence.
+The superseded pre-correction screenshots were removed from the public release
+boundary. Git history preserves them for local audit continuity, but they must
+not be cited as current release evidence.
 
 After the corrected pair is deployed and recorded in
-`deployments/README.md`, new screenshots must be generated into a separate
-`docs/screenshots/current/` set by a render check that first verifies the same
-explicit contract addresses against the chain. Human visual review is required
-in addition to DOM assertions.
+`deployments/README.md`, the current release evidence was generated into
+`docs/screenshots/current/`. The harness first verified the explicit release
+addresses and chain truth, all DOM assertions passed, and the seven screenshots
+were visually reviewed. `06-write-pending.png` and `07-write-final.png` show the
+same real snapshot transaction progressing from validator consensus to
+`FINALIZED + SUCCESS`, with observation count `5 -> 6` without reload.

@@ -5,16 +5,18 @@ tags:
   - spec
   - genlayer
   - saleproof
-status: pending_corrected_deployment_and_dual_review
+status: live_evidence_pass_final_package_review_pending
 ---
 
 # SaleProof — Specification v1.1
 
-> Status: local correction complete only after its recorded checks pass. A corrected Studionet deployment, live evidence package, Codex approval, and anonymous co-review AI approval are still required.
+> Status: the corrected contract source passed pre-deploy dual review and is
+> deployed on Studionet with source/config parity, recovery rehearsal, complete
+> live journeys, custody reconciliation, and frontend render/write evidence.
+> The final tracked evidence package still requires exact-revision co-review
+> before the public GitHub and Vercel update.
 >
-> Technical authority: Codex. Implementation history: Antigravity, with Codex takeover after the second correction attempt failed review.
->
-> Workspace: `E:\Genlayer-Projects\saleproof`. Current release network: Studionet only.
+> Current release network: Studionet only.
 
 ## 0. Product statement
 

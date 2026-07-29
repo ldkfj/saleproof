@@ -524,3 +524,117 @@ Diagnostic asset: schema/behavior probes via Studio RPC (module-level probe code
 - Test commit `90a601a` removes that component mock and adds an actual Overview render with a connected wallet, an active merchant, `products: []`, and `sales: []`. It asserts that `Add Product`, `Announce Your First Sale`, `No Products Registered`, and `No Sales Announced` are all present. The existing EUR page-render regression remains intact.
 - Focused Vitest passed `1 file / 2 tests`. The complete frontend gates then passed: `npx tsc --noEmit`, production build (494 modules), Vitest (`10 files / 41 tests`), and oxlint exit zero with the same three pre-existing Fast Refresh warnings and non-blocking bundle-size warning.
 - No production source, contract, ignored release runner, network state, transaction, deployment, checkpoint, push, Vercel deployment, or submission was changed. Fresh-pair live render/write evidence and screenshots remain truthfully `PENDING`. Anonymous approval of the new exact clean package is still required before deployment.
+
+## 2026-07-29 -- Anonymous pre-deploy round 2 re-review -- APPROVED
+
+- The anonymous co-review AI audited exact clean HEAD
+  `79001612d6126e809c2c17c47418bede1c8e64f4` and returned `APPROVED`.
+  The reviewer independently verified that the new Overview regression is
+  page-level, uses a connected active merchant with zero products/sales, does
+  not mock away `MerchantSetupActions`, and preserves the EUR regression.
+- Its complete matrix passed: `97` Python unit/harness tests, `8` Direct GenVM
+  tests, both schemas (`3/13` and `7/22`), TypeScript, 494-module production
+  build, `10 files / 41 tests` in Vitest, lint exit zero, clean scope, and
+  unchanged contract/runner hashes. This closed the pre-deploy dual-signoff
+  gate for exact contract source commit `7900161`.
+
+## 2026-07-29 -- Fresh corrected Studionet pair and recovery rehearsal -- LIVE PASS
+
+- Under the user's explicit deployment/test authorization, wallet
+  `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` was verified and used as
+  deployment owner and Root upgrader. No private key was printed or committed.
+- PriceLedger
+  `0xE14023EF575ce85Cd0a709DA3997483315BaEB40` was created by transaction
+  `0xee73c9e0eefdecbd6455501f4aba29be9fadb5296f68a1d1c7e2526bfe70868b`;
+  MerchantBond
+  `0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b` was created by
+  `0x510166780d98e1ae3d1cb2b2acd7ff57dc7f9eb14aec899a50c7d99c10e76ebc`.
+  Both finalized with actual leader `SUCCESS`.
+- Independent deployed-code hashing matched exact reviewed source:
+  PriceLedger
+  `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`
+  and MerchantBond
+  `d7d20db98851ae3958bf810eac45b95bc796f1b942c4e7131992fa957bba753f`.
+  Config/owner/Root readbacks matched all constructor values. Registrar write
+  `0xd0afe836c21603dcb6ddd97abbe8344a03b3e9e635a14df0c0a698b298207ef1`
+  finalized with leader `SUCCESS` and `is_registrar` changed `false -> true`.
+- A separate disposable rehearsal pair was deployed at PriceLedger
+  `0xE9AEC28A0BD2A387a424e52A882177dE8054489F` and MerchantBond
+  `0x8BADD9121209a4b4Db6Ee190F2C1Df36EC8CB69E`. For each contract an
+  unauthorized Root upgrade finalized with execution `ERROR`, the authorized
+  marker and exact-source restore finalized with `SUCCESS`, and final source,
+  Root/config, and seeded ordinary state matched the pre-upgrade snapshot.
+  `test_studionet_root_upgrade_rehearsal` passed in `404.62s`; a fresh
+  corrected-source/config parity retry also passed after one transient Studio
+  `-32006 Server busy` response.
+
+## 2026-07-29 -- Fresh multi-wallet journeys and custody -- LIVE PASS
+
+- Four wallets exercised prepaid merchant registration, top-up, product
+  registration, independent web snapshots, sale announcement, canonical claim,
+  duplicate-claim guard, primary judgment, unappealed finalization, appeal,
+  `judge_appeal`, settlement, cancellation, voluntary bond exit, and pull
+  withdrawals. Every successful write is recorded as `FINALIZED` plus actual
+  leader `SUCCESS` in the ignored sanitized checkpoint
+  `.secrets/studionet-release-v2.json`.
+- Primary claim #1 is `SETTLED / INFLATED_REFERENCE / 9950 bp`; its on-chain
+  reasoning cites the frozen 30-day low `5177` against reference `6500`.
+  Deterministic settlement reduced `Demo Shop` from `2.0` to `1.9 GEN`, added
+  one strike, credited the buyer `0.2 GEN`, and the buyer withdrawal zeroed the
+  ledger entry.
+- Appeal claim #2 exercised the actual `appeal -> judge_appeal` branch and is
+  `SETTLED / GENUINE / 9200 bp`, with original verdict `GENUINE`. The duplicate
+  primary claim finalized with `ERR_SALE_ALREADY_CLAIMED` while native balance,
+  prepaid credit, claim count, and sale claim ID stayed unchanged; its retained
+  credit was then withdrawn.
+- During resume, the ignored runner detected a checkpoint-key collision before
+  sending the appeal judgment: both judgment phases used
+  `release_appeal_judge_attempt_1`. The runner failed closed; the key prefix was
+  changed to `release_appeal_judge_appeal_attempt_1` in both ignored mirrors.
+  They remain byte-identical, pass syntax/oxlint, and now hash to
+  `2a02f1de1d8389eb66bf45fba960967da567cd2e2d2ef7de34ac53f3a5bb94da`.
+  The corrected key recorded successful `judge_appeal` transaction
+  `0x8ee548428afc0113e654dbd5f997cbb6dd1eb1ff62fed1a3d71029a6fbeca944`.
+- Final custody reconciliation is exact: `6.90 GEN` entered, `2.45 GEN`
+  withdrawn, `4.45 GEN` contract balance, and `4.45 GEN` remaining liabilities
+  (`3.90 GEN` merchant bonds plus `0.55 GEN` pool). All tracked prepaid and
+  withdrawable entries are zero and there are no unsettled claim liabilities.
+
+## 2026-07-29 -- Fresh frontend render/write evidence and stale-read correction -- LIVE PASS; final re-review pending
+
+- The ignored frontend environment now points only to the fresh Studionet pair.
+  `verify-live.mjs` passes the exact current values: product #1
+  books.toscrape URL, `GBP 5177`, `Demo Shop`, `1.9 GEN`, one strike, sale
+  reference `GBP 6500`, discount `2000 bp`, claim
+  `SETTLED / INFLATED_REFERENCE / 9950 bp`, deposit `0.1 GEN`, slash
+  `0.1 GEN`, and buyer total `0.2 GEN`. Only Studio capacity error `-32006` is
+  retried, using the server-provided delay and a six-attempt bound.
+- The fail-closed render harness now waits for every expected value, preserves
+  provider/store state through first-attempt SPA navigation, retries a route at
+  most three times, and asserts the fresh reasoning and confidence. All five
+  routes pass against the production build; screenshots 01-05 under
+  `docs/screenshots/current/` were regenerated from the fresh pair.
+- The first two real UI snapshots finalized on-chain and increased count
+  `3 -> 4` and `4 -> 5`, but same-page DOM count stayed stale after the
+  immediate finalized read. This exposed a production refresh defect rather
+  than an evidence-only problem. `ProductDetail` now retries the finalized
+  observation read at most eight times at three-second intervals. Unit tests
+  cover eventual visibility and bounded exhaustion.
+- The final browser write check used burner
+  `0xF9D00fEb42F350F8150723B963071294aa965f83` and snapshot transaction
+  `0xe0b77653052b8dc4bfbaa55c84814ff3fb20c2b74e5086d5a67653df6c93c0f0`.
+  The pending page showed the tx hash and validator message; the same SPA
+  session then showed `FINALIZED + SUCCESS` and observation count `5 -> 6`
+  without reload. Screenshots 06/07 record both states.
+- Frontend gates after the correction pass: TypeScript, 494-module production
+  build, `10 files / 43 tests`, and lint exit zero with the same three known
+  Fast Refresh warnings and non-blocking bundle-size warning. Because these
+  tracked frontend/evidence changes produce a new exact revision, final
+  anonymous co-review is `PENDING`; GitHub push and Vercel production update
+  remain blocked until that review approves the exact clean package.
+- The GitHub Presentation Gate was applied before packaging. The root README
+  was rewritten into the required reviewer order; the stale Vite README,
+  working `frontend/DESIGN.md`, Round A correction report, unused starter
+  assets, and superseded screenshot set were removed from the public boundary.
+  The seven current screenshots, final SPEC, recovery runbook, build log, and
+  one release manifest remain. Deleted material is recoverable from git history.

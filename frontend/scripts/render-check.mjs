@@ -59,7 +59,8 @@ const PAGES = [
       "Studionet",
       "INFLATED REF",
       "SETTLED",
-      "The merchant claims a reference price of 6500 cents",
+      "Observed lowest price in the prior 30 days was 5177 cents",
+      "9950 BP",
       "0.2",
     ],
   },
@@ -104,28 +105,61 @@ try {
 
   for (const evidencePage of PAGES) {
     process.stdout.write(`${evidencePage.route} ... `);
-    await page.goto(BASE + evidencePage.route, { waitUntil: "networkidle" });
-    try {
-      await page.waitForFunction(
-        (needle) =>
-          document.body.innerText.toLowerCase().includes(needle.toLowerCase()),
-        evidencePage.expect[0],
-        { timeout: 45_000 },
-      );
-    } catch {
-      // The complete assertion report below names every missing string.
-    }
-    const text = (await page.innerText("body")).toLowerCase();
-    const missing = evidencePage.expect.filter(
-      (expected) => !text.includes(expected.toLowerCase()),
-    );
-    if (evidencePage.minObservations) {
-      const observationCount = Number(
-        text.match(/snapshots recorded\s+(\d+)\s+observations/i)?.[1] ?? 0,
-      );
-      if (observationCount < evidencePage.minObservations) {
-        missing.push(`at least ${evidencePage.minObservations} observations`);
+    let missing = [];
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      if (attempt === 1) {
+        if (evidencePage.route !== "/") {
+          await page.evaluate((route) => {
+            window.history.pushState({}, "", route);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }, evidencePage.route);
+          await page.waitForTimeout(250);
+        }
+      } else {
+        await page.reload({ waitUntil: "networkidle" });
       }
+      try {
+        await page.waitForFunction(
+          ({ expected, minObservations }) => {
+            const text = document.body.innerText.toLowerCase();
+            const hasExpectedText = expected.every((item) =>
+              text.includes(item.toLowerCase()),
+            );
+            const observationCount = Number(
+              text.match(/snapshots recorded\s+(\d+)\s+observations/i)?.[1] ?? 0,
+            );
+            return (
+              hasExpectedText &&
+              (!minObservations || observationCount >= minObservations)
+            );
+          },
+          {
+            expected: evidencePage.expect,
+            minObservations: evidencePage.minObservations ?? 0,
+          },
+          { timeout: 45_000 },
+        );
+      } catch {
+        // The complete assertion report below names every missing string.
+      }
+
+      const text = (await page.innerText("body")).toLowerCase();
+      missing = evidencePage.expect.filter(
+        (expected) => !text.includes(expected.toLowerCase()),
+      );
+      if (evidencePage.minObservations) {
+        const observationCount = Number(
+          text.match(/snapshots recorded\s+(\d+)\s+observations/i)?.[1] ?? 0,
+        );
+        if (observationCount < evidencePage.minObservations) {
+          missing.push(`at least ${evidencePage.minObservations} observations`);
+        }
+      }
+      if (missing.length === 0 || attempt === 3) {
+        break;
+      }
+      process.stdout.write(`retry ${attempt}/3 ... `);
+      await page.waitForTimeout(2_000);
     }
     await page.screenshot({
       path: path.join(OUT, evidencePage.file),

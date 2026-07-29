@@ -2,24 +2,22 @@
 
 ## Current status
 
-**PRE-DEPLOY BLOCKED — corrected local revision verified; no current release
-pair exists.**
+**LIVE EVIDENCE PASS; final exact-revision co-review, public GitHub update, and
+Vercel production update are pending.**
 
-The previously deployed pair is permanently superseded by the custody incident
-recorded in `docs/BUILD-LOG.md`. It is not valid source, journey, frontend, or
-submission evidence. No fresh contract address, deployment transaction, v2
-release checkpoint, or frontend environment has been created.
+The release contracts were deployed from exact pre-deploy commit
+`79001612d6126e809c2c17c47418bede1c8e64f4`, which received both Codex and
+anonymous co-review approval. The contracts have not changed since that source
+freeze. Deployment, wiring, disposable Root recovery rehearsal, multi-wallet
+journeys, custody reconciliation, and local frontend render/write evidence are
+complete.
 
-The next permitted gate is anonymous co-review AI approval of the exact
-pre-deploy revision. Only after that approval may Codex ask the user to select a
-deployment/upgrader wallet, verify the active address, and explicitly confirm
-each deployment action.
+The live write check exposed an eventually-consistent post-finalization UI
+refresh defect. The correction and its evidence scripts change the tracked
+revision, so the final package must receive another anonymous co-review before
+GitHub or Vercel is updated.
 
 ## Canonical network
-
-Verified against the current official
-[Networks documentation](https://docs.genlayer.com/developers/networks) on
-2026-07-29.
 
 | Field | Value |
 |---|---|
@@ -33,277 +31,226 @@ Verified against the current official
 Bradbury addresses, RPCs, transactions, and Explorer links are not release
 evidence for this project.
 
-## Reviewed pre-deploy revision
+## Reviewed source and identity
 
 | Field | Value |
 |---|---|
-| Contract source freeze commit | `bccf236fb56cedb43715b753a0d48cc16ce50f87` |
-| Frontend prepaid correction commit | `a0ce250` |
-| Frontend anonymous-blocker correction commits | `5e29480` (implementation), `765f5d8` (core tests), `b8618e5` (page-render hardening), `90a601a` (active zero-state page proof) |
-| Incident/spec evidence base | `8e3cf1a7ca8d4ed190910c6c2d3c64a8c9d84212` |
-| Exact review-package commit | Supplied by `git rev-parse HEAD` after this manifest is committed; must have a clean tracked tree |
+| Exact deployed source commit | `79001612d6126e809c2c17c47418bede1c8e64f4` |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
 | MerchantBond SHA-256 | `d7d20db98851ae3958bf810eac45b95bc796f1b942c4e7131992fa957bba753f` |
-| SPEC SHA-256 | `db5df3cc0a4e9963b103ec028d6f4c177ad26cedb9e14ab7269c74940916d0e4` |
 | GenVM dependency | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
-| Contract classification | `UPGRADABLE` through the GenVM Root code slot |
-| Recovery runbook | `docs/RECOVERY.md` |
-| Codex pre-deploy verdict | APPROVED locally after correction; exact clean package commit must be supplied by `git rev-parse HEAD` |
-| Anonymous co-review AI pre-deploy verdict | CHANGES REQUIRED on `4016c21`; correction commit `90a601a` included; exact-HEAD re-review PENDING |
+| Classification | Both contracts are Root-slot `UPGRADABLE` |
+| User-selected deployment owner and Root upgrader | `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc` |
+| Pre-deploy Codex verdict | APPROVED |
+| Pre-deploy anonymous co-review verdict | APPROVED on exact commit `7900161` |
+| Final post-live anonymous co-review | PENDING on the new evidence-package commit |
 
-The current official
-[Upgradability documentation](https://docs.genlayer.com/developers/intelligent-contracts/features/upgradability)
-still uses the pinned dependency and confirms that Root `upgraders` may replace
-locked code while ordinary storage, locked slots, and the upgrader list persist.
-The upgraded code must keep a compatible storage layout.
+The selected wallet was derived from the configured local key without exposing
+the key. The user explicitly authorized the deployments and test transactions.
 
-### Local verification
-
-All checks below ran against the source hashes above:
-
-| Check | Result |
-|---|---|
-| `py -3.13 -m pytest -q` | `97 passed` |
-| `py -3.13 -m pytest genvm_tests/direct -q` | `8 passed` |
-| `genvm-lint check` on both contracts | PASS; PriceLedger 13 methods, MerchantBond 22 |
-| `genvm-lint typecheck` on both contracts | PASS; no type errors |
-| Live Studio schema probe | PASS; constructor/method counts `3/13` and `7/22` |
-| `npx tsc --noEmit` | PASS |
-| `npm run build` | PASS; 494 modules, non-blocking chunk-size warning |
-| `npx vitest run` | PASS; 10 files, 41 tests |
-| `npm run lint` | Exit 0; three recorded pre-existing warnings |
-| Release runner `node --check` and oxlint, both mirrors | PASS |
-
-The prepaid frontend core hashes are:
-
-- `frontend/src/lib/prepaid.ts`:
-  `df3225e9c4360e33010b5e387499975800278077bf32c79598cdb7ccf4c6f02e`
-- `frontend/src/lib/prepaid.test.ts`:
-  `793626087ce344db6a0d2004ea215c3c1a5ccb910fdd7c0028ead27575d6138b`
-- `frontend/src/components/PrepaidTxAction.tsx`:
-  `c8e4ec896266662557b6a24786614291b59801a9bde53c2866a6ea10a59e41bf`
-
-The anonymous-blocker correction frontend hashes are:
-
-- `frontend/src/lib/contracts.ts`: `81a89902d5a7b09ac1ef467836a6c109b93820da1717c658ec36e4958cd3dbb6`
-- `frontend/src/lib/sale.ts`: `f1230f05cd80b6fece02dc4c3f25752c1bf7e190d939f9a8195a1e0ed5103f6f`
-- `frontend/src/lib/sale.test.ts`: `29aede1b69ec9c5b83baa1dd26b407e801ebf2a8e35fdc1f91557fab10d8ab91`
-- `frontend/src/lib/contracts.test.ts`: `6628db309e53eded587645fe819178f1d88ea269550e506525e9a5611286e0a2`
-- `frontend/src/lib/product.ts`: `0dccc773564a8a4a09eedace2d615101620c5427312c4614a839fabf6b59875f`
-- `frontend/src/lib/product.test.ts`: `f4e72dfa55501020054ddeef4ff23b0b3569f08f3bd6bad303360f0842c7ab2d`
-- `frontend/src/components/AnnounceSaleForm.tsx`: `98d658faed1fecca7f0653a5a65d5998f57f4510565ffec866b2f25e7f85387b`
-- `frontend/src/components/AnnounceSaleForm.test.tsx`: `26d4b2408de167278742c16ea97be0b26fb7ea441347ed85592fa18678aabf27`
-- `frontend/src/components/AddProductForm.tsx`: `0ad26395bda412ef59ec5a355bca120a43e2ad83f30d4f22773408983801427d`
-- `frontend/src/components/MerchantSetupActions.tsx`: `7f4a4c6726be677a65d6dc32505893a644fdeafd3a3a6bd240168470cd3bcbd1`
-- `frontend/src/components/MerchantSetupActions.test.tsx`: `ce1bd2dd5381ab390b4aef92e3bf471d10cc6eecca76e09d7edf2e44fb846763`
-- `frontend/src/pages/Overview.tsx`: `c5f51f13baaa69a455903cafa0ab0fb6fdbcdf39effda30fb0b6a42fd13c0772`
-- `frontend/src/pages/Overview.test.tsx`: `077fcf902e40202ae7b860c8c4195bb5b19a4842c3f988bd85facc90d631d170`
-- `frontend/src/pages/SaleDetail.tsx`: `3d5be8ad4cbd6aade6f9685a18c37e6bb3e3d8c5af44dfb5967c90acf5e4ca5e`
-- `frontend/src/pages/MerchantDetail.tsx`: `a9903a42c39d0bd66504a5a16eb5689b76ca6526fd262c1eb9e196bef7ad0fbe`
-
-The two ignored local release-runner mirrors are byte-identical at SHA-256
-`aea58bcc75860f80b9522b0cf2aed26452f05a405b2df12af57525e39fc3245d`.
-They are opt-in, reject the superseded release addresses, and cannot send a
-positive value through generic retry helpers. Only the dedicated
-single-submission `depositStep` can send GEN.
-
-## Pre-deploy authorization gate
-
-| Requirement | Status / evidence |
-|---|---|
-| Explicit classification | PASS — both contracts are `UPGRADABLE` |
-| Current official network/API/header check | PASS — rechecked 2026-07-29 |
-| External user-controlled Root upgrader | PENDING user selection; no prior wallet choice is inferred |
-| Public upgrade path | PASS — both contracts expose `upgrade(new_code: bytes)` |
-| Storage compatibility plan | PASS — no field was removed, reordered, renamed, or retyped; existing `withdrawable` storage is reused as prepaid credit |
-| Upgradability regression tests | PASS locally; disposable live rehearsal required again for the changed MerchantBond source before post-deploy acceptance |
-| Secret-free draft manifest | PASS — this file contains no private key or placeholder address presented as real |
-| Studio/local and Studionet reset recovery | PASS — `docs/RECOVERY.md` |
-| Anonymous pre-deploy checkpoint | CHANGES REQUIRED on `4016c21`; correction commit `90a601a` included; exact-HEAD re-review PENDING |
-| User-selected deployment wallet and explicit deployment confirmation | PENDING |
-
-No deployment transaction is authorized while either of the last two rows is
-pending.
-
-## Required identity and authorization
-
-| Field | Current value |
-|---|---|
-| User-selected deployment wallet / owner | PENDING — must be selected again for the fresh pair |
-| Verified active deployment address | PENDING — derive from the configured key without printing the key |
-| User-selected Root upgrader wallet | PENDING — may equal owner only if the user explicitly chooses it |
-| Verified Root upgrader address | PENDING |
-| Explicit PriceLedger deployment confirmation | PENDING |
-| Explicit MerchantBond deployment confirmation | PENDING |
-| Explicit registrar-write confirmation | PENDING if requested under the final action plan |
-
-Approvals for any earlier pair do not carry over.
-
-## Intended constructor arguments
-
-PriceLedger:
-
-```text
-upgrader_address: PENDING — exact user-selected external wallet
-snapshot_cooldown_s: 60
-max_observations: 500
-```
-
-MerchantBond:
-
-```text
-upgrader_address: PENDING — exact user-selected external wallet
-ledger: PENDING — the fresh verified PriceLedger address
-min_bond_wei: 2000000000000000000
-claim_deposit_wei: 100000000000000000
-appeal_bond_wei: 500000000000000000
-appeal_window_s: 300
-strike_limit: 3
-```
-
-No fake address may be encoded or written to a real `.env`. MerchantBond may be
-deployed only after the fresh PriceLedger address is real, finalized with
-leader `SUCCESS`, source-matched, and config-read back.
-
-## Fresh release deployment record
+## Release contracts
 
 | Field | PriceLedger | MerchantBond |
 |---|---|---|
-| Address | PENDING | PENDING |
-| Deployment transaction | PENDING | PENDING |
-| Sender / owner | PENDING | PENDING |
-| Registered Root upgrader | PENDING | PENDING |
-| Final transaction status | PENDING | PENDING |
-| Actual leader execution result | PENDING | PENDING |
-| Explorer link | PENDING | PENDING |
-| `gen_getContractCode` SHA-256 | must equal `61fccf...f392` | must equal `d7d20d...753f` |
-| Local/deployed source parity | PENDING | PENDING |
-| Constructor/config readback | PENDING | PENDING |
+| Address | `0xE14023EF575ce85Cd0a709DA3997483315BaEB40` | `0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b` |
+| Deploy tx | `0xee73c9e0eefdecbd6455501f4aba29be9fadb5296f68a1d1c7e2526bfe70868b` | `0x510166780d98e1ae3d1cb2b2acd7ff57dc7f9eb14aec899a50c7d99c10e76ebc` |
+| Status / leader result | `FINALIZED` / `SUCCESS` | `FINALIZED` / `SUCCESS` |
+| Owner | `0x666d...28Dc` | `0x666d...28Dc` |
+| Root upgrader readback | `true` | `true` |
+| Deployed source parity | exact SHA-256 match | exact SHA-256 match |
 
-Every actual field must be filled from sanitized finalized evidence. Raw
-receipts may contain sensitive node configuration and must not be printed or
-committed.
+Explorer:
 
-## Pair wiring
+- [PriceLedger address](https://explorer-studio.genlayer.com/address/0xE14023EF575ce85Cd0a709DA3997483315BaEB40)
+- [MerchantBond address](https://explorer-studio.genlayer.com/address/0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b)
+- [PriceLedger deploy transaction](https://explorer-studio.genlayer.com/transactions/0xee73c9e0eefdecbd6455501f4aba29be9fadb5296f68a1d1c7e2526bfe70868b)
+- [MerchantBond deploy transaction](https://explorer-studio.genlayer.com/transactions/0x510166780d98e1ae3d1cb2b2acd7ff57dc7f9eb14aec899a50c7d99c10e76ebc)
 
-| Check | Status |
-|---|---|
-| MerchantBond config points to the fresh PriceLedger | PENDING |
-| `PriceLedger.add_registrar(fresh MerchantBond)` | PENDING |
-| Registrar transaction is FINALIZED with actual leader `SUCCESS` | PENDING |
-| `PriceLedger.is_registrar(fresh MerchantBond) == true` at `LATEST_FINAL` | PENDING |
-| Both owners match the selected deployment wallet | PENDING |
-| Both `is_upgrader(selected wallet) == true` | PENDING |
+Finalized constructor/config readback:
 
-Required order:
+```text
+PriceLedger:
+  owner/upgrader: 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc
+  snapshot_cooldown_s: 60
+  max_observations: 500
 
-1. deploy and verify PriceLedger;
-2. deploy and verify MerchantBond with that exact ledger address;
-3. wire and verify registrar membership;
-4. complete the disposable Root rehearsal for the exact current source;
-5. run the multi-wallet custody and adjudication journeys;
-6. configure and verify the frontend only from the accepted manifest.
+MerchantBond:
+  owner/upgrader: 0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc
+  ledger: 0xE14023EF575ce85Cd0a709DA3997483315BaEB40
+  min_bond_wei: 2000000000000000000
+  claim_deposit_wei: 100000000000000000
+  appeal_bond_wei: 500000000000000000
+  appeal_window_s: 300
+  strike_limit: 3
+  initial pool_wei: 0
+```
 
-## Disposable Root rehearsal
+Registrar transaction
+`0xd0afe836c21603dcb6ddd97abbe8344a03b3e9e635a14df0c0a698b298207ef1`
+is `FINALIZED` with leader `SUCCESS`; the finalized readback changed from
+`false` to `true`.
 
-Post-deploy acceptance requires a separate test deployment and cannot use the
-release contracts for marker code. The earlier PriceLedger source is
-byte-identical to the current source, but MerchantBond changed. Therefore the
-prior rehearsal is preserved only as historical evidence below; it does not by
-itself close the current pair's post-deploy rehearsal gate.
+## Disposable Root recovery rehearsal
 
-The current rehearsal must prove, for both exact source hashes:
+The rehearsal used separate contracts and never installed marker code on the
+release pair:
 
-1. unauthorized upgrade finalizes without execution success and code is
-   byte-identical afterward;
-2. authorized marker upgrade finalizes with leader `SUCCESS`;
-3. marker view works and all snapshotted ordinary state is preserved;
-4. exact reviewed source is restored with leader `SUCCESS`;
-5. source bytes, Root membership, config, and ordinary state match the
-   pre-rehearsal snapshot.
-
-Current-source rehearsal addresses and all denied/marker/restore transactions:
-PENDING.
-
-## Live journey proof matrix
-
-Every row must use the fresh pair, more than one wallet, sanitized transaction
-evidence, `FINALIZED` plus actual leader `SUCCESS` for successful writes, and
-`LATEST_FINAL` readback.
-
-| Actor / branch | Required method sequence | Transaction/readback |
+| Field | Rehearsal PriceLedger | Rehearsal MerchantBond |
 |---|---|---|
-| Merchant registration/bond | `deposit` then nonpayable `register_merchant(name, bond_wei)` | PENDING |
-| Merchant top-up recovery | `deposit` then nonpayable `top_up_bond(amount_wei)` | PENDING |
-| Product registration | `add_product` and triggered ledger registration | PENDING |
-| Independent watcher history | three or more `snapshot` writes | PENDING |
-| Sale announcement | `announce_sale` | PENDING |
-| Buyer canonical claim | `deposit` then nonpayable `file_claim(sale_id, deposit_wei)` | PENDING |
-| Duplicate-claim guard | nonpayable duplicate fails with no native/credit/state delta | PENDING |
-| Primary judgment | `judge_claim` | PENDING |
-| Appeal funding and secondary judgment | `deposit`, nonpayable `appeal`, `judge_appeal` | PENDING |
-| Unappealed terminal branch | separate claim and `finalize_unappealed` | PENDING |
-| Permissionless settlement | third-party `settle` | PENDING |
-| Pull payments | buyer/appellant/merchant `withdraw`; entries zero afterward | PENDING |
-| Custody conservation | deposits = withdrawals + remaining bonds/claims/appeals/credits/pool = contract balance | PENDING |
+| Address | `0xE9AEC28A0BD2A387a424e52A882177dE8054489F` | `0x8BADD9121209a4b4Db6Ee190F2C1Df36EC8CB69E` |
+| Deploy tx | `0xd21a07060851d5e2b67d1a2d8c99ac1176013edd4d8708e7567c4bdad60fe4e1` | `0xbee2d532ffb3d5af9f397ba452a01f5ec081b798ae402a90435fbd6c6dc1aa96` |
+| Unauthorized upgrade | `0xe8fb34df5fbb69a6dca64701ed8474fa6a5cb6b35f6a3a454d865df6a3ea5106` - execution `ERROR` | `0xff032eed05e14fa8261dd1351751470000ff98d050ec77a52050bf3cbb228f7a` - execution `ERROR` |
+| Authorized marker | `0xdc2db87cb534288eb7bf5b736faaa1429133a62af7a1e29488770178ae8fc1a0` - `SUCCESS` | `0x968938e1c958fab7202884b1d4acdae9c9d2b6a4438eded221281dfe0f091458` - `SUCCESS` |
+| Exact-source restore | `0x1553bd395db09142d001a241ec0b8f73f79de4a24b2196cf1cfe5212c7af394c` - `SUCCESS` | `0x6ae36fb9abdc005daa240a51c928805a4221ad089120caac619ac69076484f44` - `SUCCESS` |
 
-No pending, failed, validator-only, or mismatched-source transaction may satisfy
-a successful row.
+Registrar wiring tx
+`0x46d2fd2c6ead6316ae37650d8c9b0a3429221706d8f429608332699d3e3dc5ab`
+also finalized successfully. The Root integration test passed:
 
-## Frontend and public-release evidence
+```text
+genvm_tests/integration/test_saleproof_network.py::test_studionet_root_upgrade_rehearsal PASSED
+1 passed, 1 deselected in 404.62s
+```
 
-| Field | Required current value |
+After restore, both rehearsal contracts matched the release source hashes,
+their marker views were absent, Root membership/config were preserved, and the
+seeded merchant/product/observation/sale/claim state matched its pre-upgrade
+snapshot.
+
+## Multi-wallet release journeys
+
+Actors:
+
+- merchant/owner: `0x666d6A7dCA1319caDcC7fB6b10DAB55cD8e128Dc`
+- buyer/appellant: `0xa52A403Bb4fB8D79625bb8A3481e0e27a2428CC1`
+- watcher/exit merchant: `0x6fe25379e202A6A7bdBBF85F0941CFc837BFDb92`
+- second merchant/watcher: `0xf3246E8699cE88795c14E0044851c775d08a824C`
+
+Every successful transaction below is `FINALIZED` with actual leader
+`SUCCESS`. Guard probes are explicitly marked as execution errors.
+
+| Branch | Key transaction evidence |
 |---|---|
-| `VITE_GL_NETWORK` | `studionet` |
-| `VITE_LEDGER_ADDRESS` | PENDING fresh accepted ledger |
-| `VITE_BOND_ADDRESS` | PENDING fresh accepted bond |
-| Production Vercel URL | PENDING user-selected team and explicit confirmation |
-| `verify-live.mjs` | PENDING fresh pair |
-| Render/write checks and screenshots | PENDING fresh pair |
-| GitHub exact public commit | PENDING user-selected account and explicit push confirmation |
-| GitHub Presentation Gate | PENDING |
-| Final anonymous co-review AI verdict | PENDING |
+| Primary merchant deposit/register | `0xcd3323e8e470774ad321cd905476b04353ec60b64cdcdf49277ef3091f6606b7`, `0xf31cbaa72867cf2fe4c4a504ecc78355e0c067ab2d2d0608496a1b1aecf00843` |
+| Primary product + triggered ledger registration | `0xe0c5e5df2922e023a3df02c85a98ad8d31be9bf1cf66cae09d0e82bef9796a58`, `0xb2931577cf9827c33a65115886b5854dad97967b9a80f44e99b6224c9ef8989d` |
+| Primary snapshots (three independent callers) | `0x29114ea12517bd4243caca1f8853f94dcb3e4e9afc0c8408e8e1e3ea8611a4de`, `0x9dd83fd7e0330763198aa5fb530ed71479bc8684f51fb709f448dda3641c1bae`, `0x8e0cfa16e9d3e7076a700e9c2592e6d0c8cca7e2d78c0171b8e2185ce92ec551` |
+| Primary sale | `0xed4da9432341f81f05d4a7d7566b35abc367c60ff14d09d9aa48b320cf9125a1` |
+| Buyer deposit/file claim | `0xf6619f0073547350d848551505a6c4737ad05952ed8c06e3a85f651b76a79a5f`, `0x331dfe538dc84443f53d1d6710df2d27cbd672b2213e4cf31ce24a298cb38613` |
+| Duplicate guard | deposit `0x120cd8de9b40b1675e0a88845a2e50a351429b8fbb275d2b6638be88ed495c85`; business call `0x052512ce6742a6011246de7fa7b68fdd191885ecc754ff92fd946fcaba485553` finalized with `ERR_SALE_ALREADY_CLAIMED`; unchanged state/credit then withdrawal `0x9692be1479e7fda785274fb15a40789be39f882a585f80b7ffb8e5f3d103b66b` |
+| Primary judge/finalize/settle | `0x3af833d254eea048d34f0247bf4d25b3b5418496b5196cd3cf21a5ccf8e71e4f`, `0x610c1da227ddeeecd8ca661a4c1e9a8fbba3ccdc334d028ab77be0496ca8212e`, `0x8b17130bb426ea3f2fc5dd9c07c06f0ed3d3c069df18e3d429fac086863abdc3` |
+| Primary buyer withdrawal | `0x40c5b1190633d7076a9124e785192be713752b0520409d8b7fe8d8b1cb52dee7`, exactly `0.2 GEN`, withdrawable becomes zero |
+| Appeal merchant deposit/register | `0xdd7b717da6c792626e4d0a3416382bbc9ac1ef44467f21c035c16e8994188567`, `0x2581a29283d434bf671f1cde94dadbbedceabeea49a9cbd5d74299dcef93fcf8` |
+| Appeal product + triggered ledger registration | `0x84636280147c343315a58e4420e38282871b54a3da8761ef8891af180d97c523`, `0xbbfcc601c1e79dbf6ebc83154723b224e2555fb4b8049ff9b0b13ca6d3dc2334` |
+| Appeal snapshots | `0xa586cb8a9cb59dd630e870e4a4f656f46aa88d67904e7801a87a974f9cd89cf9`, `0x69f1edb6d98d9bd2018e8e34d99b9583515f60eaac85834dacdc774cc25a048f`, `0xa8965f4228532440020b5f35383377b6ad9352afe5bb08445fd7cf5b8c29c165` |
+| Appeal sale/deposit/file/judge | `0xd1a2020b51c9008c580cf39e4e54e11c1b3685b994e74608b43aa3138d7eee21`, `0xcb26e964f213058e04c2424ffdf355a60f307f23f1e21ea2d87fee52b2d9c20d`, `0xa24b2ad9882415d1067c0aa10aba4ee2b5fcec0b863e266a2f0c0c9e769b29f6`, `0xb6cc9f28963fd071078298af8620272156116cf53ae21dc19a212f9d49cec168` |
+| Appeal deposit/appeal/judge_appeal | `0x6478a2b70d1da0576b3da6a3bf3f77e472e267b9073dc156e4a401457e82a756`, `0x3c99c8c6fde1961ebb876f0bf893d9a1da4fb216d13b35c2aeea522c106f9d4e`, `0x8ee548428afc0113e654dbd5f997cbb6dd1eb1ff62fed1a3d71029a6fbeca944` |
+| Appeal settlement/merchant withdrawal | `0x3b762a222cc988476d69ee90bed61f42e3c642d47f9f8ee2f1913d97addfca8b`, `0x217987428146aa9b2438882d522be4dfcb66348e885bff6b4a02dd367aed03c7` |
+| Voluntary exit register/top-up/withdraw bond/pull payment | `0xd35bb44f867f5eda71af0bbc7ed5d77c7ed03aef23dc116e49c0e6bd3ac9bf73`, `0x54f5268aff317fefd687f2c4959a30a19aa048befddb2afbe593727cf559c15e`, `0x770e7c22abc9c85914666d452c82ee0311e0f4e1e023036c2b373ba6d5061db8`, `0x6b7733e9715ff872a29401399075c44a666c9bf53bcce59653331e9ad90d43d3` |
 
-Existing Vercel data, `.env`, screenshots, or Explorer links for a superseded
-pair are not current evidence.
+Final chain outcomes:
 
-## Historical evidence — superseded, never current
+- primary claim #1: `SETTLED`, `INFLATED_REFERENCE`, confidence `9950 bp`;
+  reasoning cites the frozen on-chain low `5177` against reference `6500`;
+  merchant bond `1.9 GEN`, one strike, still active;
+- deterministic primary settlement: buyer credit `0.1 GEN` deposit plus
+  `0.1 GEN` bond slash = `0.2 GEN`; withdrawal zeroed the entry;
+- appeal claim #2: original `GENUINE`, appeal exercised through
+  `judge_appeal`, final `GENUINE`, confidence `9200 bp`, then `SETTLED`;
+- voluntary-exit merchant ended inactive with bond zero and withdrew
+  `2.1 GEN`;
+- duplicate claim did not change native balance, credit, claim count, or sale
+  claim ID; the preserved prepaid credit was withdrawn.
 
-### Initial Phase 4 pair
+Custody reconciliation:
+
+```text
+total entered:                6.90 GEN
+total withdrawn:             2.45 GEN
+contract balance:            4.45 GEN
+remaining merchant bonds:    3.90 GEN
+pool:                        0.55 GEN
+unsettled claim liabilities: 0.00 GEN
+prepaid/withdrawable:         0.00 GEN
+remaining custody:           4.45 GEN
+verified:                    true
+```
+
+## Frontend evidence
+
+Local ignored environment:
+
+```text
+VITE_GL_NETWORK=studionet
+VITE_LEDGER_ADDRESS=0xE14023EF575ce85Cd0a709DA3997483315BaEB40
+VITE_BOND_ADDRESS=0x6BaFf2C558F20147ECDEc3867E59A172B4995a5b
+```
+
+`verify-live.mjs` passes against the release pair and asserts product #1 URL,
+`GBP 5177`, merchant `Demo Shop`, bond `1.9 GEN`, one strike, sale reference
+`GBP 6500`, discount `2000 bp`, claim `SETTLED / INFLATED_REFERENCE /
+9950 bp`, deposit `0.1 GEN`, slash `0.1 GEN`, and buyer total `0.2 GEN`.
+Only Studio RPC capacity error `-32006` is retried, using the server's bounded
+`retry_after_seconds`; all other errors fail immediately.
+
+The final production-build render check passed all five routes:
+
+- `docs/screenshots/current/01-overview.png`
+- `docs/screenshots/current/02-product.png`
+- `docs/screenshots/current/03-sale.png`
+- `docs/screenshots/current/04-claim.png`
+- `docs/screenshots/current/05-merchant.png`
+
+The live write check first exposed a real post-finalization stale-read defect.
+Two successful diagnostic snapshots
+(`0x3fab646d21012ba1e243994cc7f59cdc29211e30ad045fc236b6b1d951f14b24`,
+count `3 -> 4`, and
+`0x09f9e65ff35e98742fd35f8511bcbda92932947bf74f1e53bfdc86a93c6cd0ab`,
+count `4 -> 5`) finalized on-chain while the same-page count remained stale.
+The corrected page retries finalized observation reads at most eight times with
+a three-second interval. Two unit regressions cover eventual success and
+bounded exhaustion.
+
+Final write evidence:
+
+```text
+burner: 0xF9D00fEb42F350F8150723B963071294aa965f83
+snapshot tx: 0xe0b77653052b8dc4bfbaa55c84814ff3fb20c2b74e5086d5a67653df6c93c0f0
+pending UI: transaction hash + validator consensus message
+final UI: FINALIZED + SUCCESS
+observation count: 5 -> 6 without page reload
+WRITE CHECK: PASS
+```
+
+Screenshots:
+
+- `docs/screenshots/current/06-write-pending.png`
+- `docs/screenshots/current/07-write-final.png`
+
+## Remaining release gates
+
+| Gate | Status |
+|---|---|
+| Contract source/deployment parity | PASS |
+| Wiring and config readback | PASS |
+| Disposable Root rehearsal | PASS |
+| Primary, appeal, guard, exit, settlement, and custody journeys | PASS |
+| Local frontend typecheck/build/tests/lint | PASS; 10 files / 43 tests |
+| Fresh render/write evidence | PASS |
+| Final anonymous co-review on exact tracked revision | PENDING |
+| GitHub Presentation Gate and public push | PENDING |
+| Production Vercel environment/update/smoke check | PENDING |
+
+## Historical evidence - superseded, never current
+
+Initial Phase 4 pair:
 
 - PriceLedger `0x26aA8E0af993665e02A14408f75221e1951926C1`
 - MerchantBond `0xDa121e6fF503eC2F13101df37Cf05aD38E93544F`
 
-### Custody-incident pair
+Custody-incident pair:
 
 - PriceLedger `0x6a3E79C7F9ec2f11C355bd19fcc99ef87412BaD0`
-  - deploy tx
-    `0x5245b07d5ecfee24f6c423a10d16398320918fdf75d993aec75d06b453884dcc`
-  - source SHA-256
-    `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392`
 - MerchantBond `0x18e8029FC7e8d217167100C2b9E6983722124E18`
-  - deploy tx
-    `0xe3cb5c67f52df04b173c160767228735a8d9a50f62b96baf82c3d05ea0dd77c9`
-  - source SHA-256
-    `5b0fa27b724643680c776eab867aa124a2f5a381f7f8c676bf2157d9c27d66bb`
-- registrar tx
-  `0xb01f8b1ddc27adb33374d16c5ec11e50c8f8ade3e730febaa496c9ed9d2f7166`
-- duplicate payable claim tx
-  `0x6d5d3f894ad38f2fa56a42ca3d13726ece95104f0404cd81d300612f9300abaf`
-  finalized with `ERR_SALE_ALREADY_CLAIMED` while transferring an orphaned
-  `0.1 GEN`.
-- preserved incident checkpoint SHA-256
-  `9ddd88620a026179dba0409b0c6dc5fa6cf70a9d3626728f65078258e80030d9`
 
-### Prior disposable rehearsal for the superseded Bond source
-
-| Evidence | PriceLedger rehearsal | MerchantBond rehearsal |
-|---|---|---|
-| Disposable address | `0xe6227B6C8305EEbdd6468cf4206C18e87bFB19f2` | `0xBAd98e2A9f116A330E6Da062397775752eFC60dE` |
-| Unauthorized upgrade tx | `0xe2e05e55e90b1631ddd5f6c6c4918dc12a7b9980f26c28534f7ce10860f86bd5` | `0xf0ef12303f60215042d4b73b0adccf73276dd6d385d0e14fb9896ae2bfb98ed0` |
-| Authorized marker tx | `0xe9c63c1f3fed16e9336c8148a5d0db25da7f9fc47520e205514acbcc10a753a9` | `0xcaae601663c29e7b84cdedbfbc54fd159a66842eacf8f78d3e8e92425fecfb4f` |
-| Exact-source restore tx | `0xc2ab93448f4567f518d954fcea59c5e7e716356d24ed70ee69a8e530e65c5d0a` | `0x055a36e032895e355ba350739cbd9fb97f3bbaff4255b3b72440f21565322577` |
-| Restored source SHA-256 | `61fccf...f392` | `5b0fa2...66bb` — not the current MerchantBond |
-
-Full historical readbacks and incident analysis remain in
-`docs/BUILD-LOG.md`; they are retained for audit continuity, not release claims.
+Neither pair may be used as current source, journey, frontend, or submission
+evidence.
