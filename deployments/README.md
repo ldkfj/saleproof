@@ -39,7 +39,7 @@ evidence for this project.
 |---|---|
 | Contract source freeze commit | `bccf236fb56cedb43715b753a0d48cc16ce50f87` |
 | Frontend prepaid correction commit | `a0ce250` |
-| Frontend anonymous-blocker correction commits | `5e29480` (implementation), `765f5d8` (core tests), `b8618e5` (page-level hardening) |
+| Frontend anonymous-blocker correction commits | `5e29480` (implementation), `765f5d8` (core tests), `b8618e5` (page-render hardening), `90a601a` (active zero-state page proof) |
 | Incident/spec evidence base | `8e3cf1a7ca8d4ed190910c6c2d3c64a8c9d84212` |
 | Exact review-package commit | Supplied by `git rev-parse HEAD` after this manifest is committed; must have a clean tracked tree |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
@@ -49,7 +49,7 @@ evidence for this project.
 | Contract classification | `UPGRADABLE` through the GenVM Root code slot |
 | Recovery runbook | `docs/RECOVERY.md` |
 | Codex pre-deploy verdict | APPROVED locally after correction; exact clean package commit must be supplied by `git rev-parse HEAD` |
-| Anonymous co-review AI pre-deploy verdict | CHANGES REQUIRED on `b065863`; corrected exact-HEAD re-review PENDING |
+| Anonymous co-review AI pre-deploy verdict | CHANGES REQUIRED on `4016c21`; correction commit `90a601a` included; exact-HEAD re-review PENDING |
 
 The current official
 [Upgradability documentation](https://docs.genlayer.com/developers/intelligent-contracts/features/upgradability)
@@ -70,7 +70,7 @@ All checks below ran against the source hashes above:
 | Live Studio schema probe | PASS; constructor/method counts `3/13` and `7/22` |
 | `npx tsc --noEmit` | PASS |
 | `npm run build` | PASS; 494 modules, non-blocking chunk-size warning |
-| `npx vitest run` | PASS; 10 files, 40 tests |
+| `npx vitest run` | PASS; 10 files, 41 tests |
 | `npm run lint` | Exit 0; three recorded pre-existing warnings |
 | Release runner `node --check` and oxlint, both mirrors | PASS |
 
@@ -97,7 +97,7 @@ The anonymous-blocker correction frontend hashes are:
 - `frontend/src/components/MerchantSetupActions.tsx`: `7f4a4c6726be677a65d6dc32505893a644fdeafd3a3a6bd240168470cd3bcbd1`
 - `frontend/src/components/MerchantSetupActions.test.tsx`: `ce1bd2dd5381ab390b4aef92e3bf471d10cc6eecca76e09d7edf2e44fb846763`
 - `frontend/src/pages/Overview.tsx`: `c5f51f13baaa69a455903cafa0ab0fb6fdbcdf39effda30fb0b6a42fd13c0772`
-- `frontend/src/pages/Overview.test.tsx`: `c7b60d867d7a9ae4487b864c6dad6e3a3b5a4fc93e5aa2c279fcf21d2d27bd37`
+- `frontend/src/pages/Overview.test.tsx`: `077fcf902e40202ae7b860c8c4195bb5b19a4842c3f988bd85facc90d631d170`
 - `frontend/src/pages/SaleDetail.tsx`: `3d5be8ad4cbd6aade6f9685a18c37e6bb3e3d8c5af44dfb5967c90acf5e4ca5e`
 - `frontend/src/pages/MerchantDetail.tsx`: `a9903a42c39d0bd66504a5a16eb5689b76ca6526fd262c1eb9e196bef7ad0fbe`
 
@@ -119,7 +119,7 @@ single-submission `depositStep` can send GEN.
 | Upgradability regression tests | PASS locally; disposable live rehearsal required again for the changed MerchantBond source before post-deploy acceptance |
 | Secret-free draft manifest | PASS — this file contains no private key or placeholder address presented as real |
 | Studio/local and Studionet reset recovery | PASS — `docs/RECOVERY.md` |
-| Anonymous pre-deploy checkpoint | CHANGES REQUIRED on `b065863`; corrected exact-HEAD re-review PENDING |
+| Anonymous pre-deploy checkpoint | CHANGES REQUIRED on `4016c21`; correction commit `90a601a` included; exact-HEAD re-review PENDING |
 | User-selected deployment wallet and explicit deployment confirmation | PENDING |
 
 No deployment transaction is authorized while either of the last two rows is
