@@ -38,7 +38,8 @@ evidence for this project.
 | Field | Value |
 |---|---|
 | Contract source freeze commit | `bccf236fb56cedb43715b753a0d48cc16ce50f87` |
-| Frontend correction commit | `a0ce250` |
+| Frontend prepaid correction commit | `a0ce250` |
+| Frontend anonymous-blocker correction commits | `5e29480` (implementation), `765f5d8` (tests) |
 | Incident/spec evidence base | `8e3cf1a7ca8d4ed190910c6c2d3c64a8c9d84212` |
 | Exact review-package commit | Supplied by `git rev-parse HEAD` after this manifest is committed; must have a clean tracked tree |
 | PriceLedger SHA-256 | `61fccf91ef74ac0fd138aa6b56ee89fd957f299215266b3861b0c128cf96f392` |
@@ -47,8 +48,8 @@ evidence for this project.
 | GenVM dependency | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
 | Contract classification | `UPGRADABLE` through the GenVM Root code slot |
 | Recovery runbook | `docs/RECOVERY.md` |
-| Codex pre-deploy verdict | PENDING exact-HEAD review |
-| Anonymous co-review AI pre-deploy verdict | PENDING |
+| Codex pre-deploy verdict | APPROVED locally after correction; exact clean package commit must be supplied by `git rev-parse HEAD` |
+| Anonymous co-review AI pre-deploy verdict | CHANGES REQUIRED on `b065863`; corrected exact-HEAD re-review PENDING |
 
 The current official
 [Upgradability documentation](https://docs.genlayer.com/developers/intelligent-contracts/features/upgradability)
@@ -68,9 +69,9 @@ All checks below ran against the source hashes above:
 | `genvm-lint typecheck` on both contracts | PASS; no type errors |
 | Live Studio schema probe | PASS; constructor/method counts `3/13` and `7/22` |
 | `npx tsc --noEmit` | PASS |
-| `npm run build` | PASS; 489 modules, non-blocking chunk-size warning |
-| `npx vitest run` | PASS; 4 files, 28 tests |
-| `npm run lint` | Exit 0; four recorded pre-existing warnings |
+| `npm run build` | PASS; 492 modules, non-blocking chunk-size warning |
+| `npx vitest run` | PASS; 7 files, 35 tests |
+| `npm run lint` | Exit 0; three recorded pre-existing warnings |
 | Release runner `node --check` and oxlint, both mirrors | PASS |
 
 The prepaid frontend core hashes are:
@@ -81,6 +82,19 @@ The prepaid frontend core hashes are:
   `793626087ce344db6a0d2004ea215c3c1a5ccb910fdd7c0028ead27575d6138b`
 - `frontend/src/components/PrepaidTxAction.tsx`:
   `c8e4ec896266662557b6a24786614291b59801a9bde53c2866a6ea10a59e41bf`
+
+The anonymous-blocker correction frontend hashes are:
+
+- `frontend/src/lib/contracts.ts`: `81a89902d5a7b09ac1ef467836a6c109b93820da1717c658ec36e4958cd3dbb6`
+- `frontend/src/lib/sale.ts`: `f1230f05cd80b6fece02dc4c3f25752c1bf7e190d939f9a8195a1e0ed5103f6f`
+- `frontend/src/lib/sale.test.ts`: `29aede1b69ec9c5b83baa1dd26b407e801ebf2a8e35fdc1f91557fab10d8ab91`
+- `frontend/src/lib/contracts.test.ts`: `d0efd3e43d6179c2d8eff4b8c3e14d5c71498ace89789c3975beb8c53af53f7c`
+- `frontend/src/components/AnnounceSaleForm.tsx`: `592f3db0a9fb19db24c9045b7a8c497a18d6866b8e58de93c61766996e96fec8`
+- `frontend/src/components/AnnounceSaleForm.test.tsx`: `85dbdf0121f3297e0b7e4fc99f0951b08d681320e284ad3a9bda51fc6f18c0c0`
+- `frontend/src/components/AddProductForm.tsx`: `5f6e3af2fa597b90b9b14af99e0cff52f53abe67003b1de19a12ce396818cbb7`
+- `frontend/src/pages/Overview.tsx`: `c038bf72b9290d440a06fc3766a8c77a9db4d1c860a90fc4bedcd72e3f1fbc65`
+- `frontend/src/pages/SaleDetail.tsx`: `3d5be8ad4cbd6aade6f9685a18c37e6bb3e3d8c5af44dfb5967c90acf5e4ca5e`
+- `frontend/src/pages/MerchantDetail.tsx`: `a9903a42c39d0bd66504a5a16eb5689b76ca6526fd262c1eb9e196bef7ad0fbe`
 
 The two ignored local release-runner mirrors are byte-identical at SHA-256
 `aea58bcc75860f80b9522b0cf2aed26452f05a405b2df12af57525e39fc3245d`.
@@ -100,7 +114,7 @@ single-submission `depositStep` can send GEN.
 | Upgradability regression tests | PASS locally; disposable live rehearsal required again for the changed MerchantBond source before post-deploy acceptance |
 | Secret-free draft manifest | PASS — this file contains no private key or placeholder address presented as real |
 | Studio/local and Studionet reset recovery | PASS — `docs/RECOVERY.md` |
-| Anonymous pre-deploy checkpoint | PENDING |
+| Anonymous pre-deploy checkpoint | CHANGES REQUIRED on `b065863`; corrected exact-HEAD re-review PENDING |
 | User-selected deployment wallet and explicit deployment confirmation | PENDING |
 
 No deployment transaction is authorized while either of the last two rows is
